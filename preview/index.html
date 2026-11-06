@@ -28,13 +28,28 @@
   .move-row{display:flex;align-items:center;justify-content:center;gap:16px;margin:18px auto 20px;padding:12px 10px;
     border:1px solid rgba(255,255,255,.075);border-radius:18px;background:rgba(6,9,12,.4)}
   .move-row strong{min-width:220px;font-size:clamp(1.1rem,3.5vw,1.45rem);color:#f3ead9}
-  .check-row{display:flex;align-items:center;justify-content:center;gap:11px;margin:0 auto 22px;color:#e9dfd1;font-size:1rem}
-  .check-row input{width:20px;height:20px;accent-color:#e8b65e}
+  .pro-toggle{position:relative;display:flex;align-items:center;justify-content:center;gap:14px;width:min(100%,430px);min-height:66px;
+    margin:0 auto 22px;padding:9px 16px;box-sizing:border-box;border:1px solid rgba(232,182,94,.28);border-radius:18px;
+    background:linear-gradient(135deg,rgba(42,50,57,.94),rgba(24,28,33,.96));cursor:pointer;text-align:right;
+    box-shadow:inset 0 1px rgba(255,255,255,.035),0 8px 20px rgba(0,0,0,.18);transition:border-color .2s,box-shadow .2s,background .2s}
+  .pro-toggle:hover{border-color:rgba(255,211,132,.58);box-shadow:0 0 22px rgba(232,182,94,.10)}
+  .pro-toggle input{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
+  .pro-switch{position:relative;flex:0 0 58px;width:58px;height:32px;border-radius:20px;border:1px solid rgba(255,255,255,.12);
+    background:linear-gradient(180deg,#101419,#252b31);box-shadow:inset 0 3px 7px rgba(0,0,0,.55);transition:background .2s,border-color .2s}
+  .pro-switch i{position:absolute;top:4px;left:4px;width:24px;height:24px;border-radius:50%;background:linear-gradient(145deg,#f2e6cf,#a9a49b);
+    box-shadow:0 3px 8px rgba(0,0,0,.42);transition:transform .22s cubic-bezier(.2,.8,.25,1),background .2s}
+  .pro-toggle input:checked + .pro-switch{background:linear-gradient(120deg,#bd843b,#e8bd6e);border-color:#ffda92;box-shadow:0 0 15px rgba(232,182,94,.28),inset 0 2px 5px rgba(0,0,0,.25)}
+  .pro-toggle input:checked + .pro-switch i{transform:translateX(25px);background:linear-gradient(145deg,#fff6e3,#f0d499)}
+  .pro-toggle input:focus-visible + .pro-switch{outline:3px solid #ffe4a7;outline-offset:4px}
+  .pro-copy{display:flex;flex-direction:column;gap:3px;color:#f5ead8}
+  .pro-copy strong{font-size:1.02rem;font-weight:700}
+  .pro-copy small{font-size:.78rem;color:#b7b2a9}
   button{font:inherit;color:#21170f;border:1px solid rgba(255,228,177,.25);border-radius:14px;
     background:linear-gradient(180deg,#f0d39c,#c89a57);padding:12px 20px;min-height:48px;cursor:pointer;touch-action:manipulation;
     box-shadow:0 8px 20px rgba(0,0,0,.24);transition:transform .15s,filter .15s,box-shadow .15s}
   button:hover{filter:brightness(1.08);box-shadow:0 10px 24px rgba(0,0,0,.32)}
   button:active{transform:scale(.97)}
+  button:disabled{opacity:.42;cursor:default;filter:grayscale(.45);box-shadow:none}
   button:focus-visible{outline:3px solid #ffe4a7;outline-offset:3px}
   #move-minus,#move-plus{width:54px;padding:8px;font-size:1.5rem;border-radius:13px;background:linear-gradient(180deg,#333c47,#20262e);color:#f6e8cf}
   #start-game,#tutorial-continue{width:min(100%,430px);font-weight:800;color:#23170a;background:linear-gradient(180deg,#ffd789,#d79f4d);font-size:1.08rem}
@@ -58,7 +73,11 @@
       <strong id="move-count">۳ حرکت در هر نوبت</strong>
       <button id="move-plus" aria-label="زیاد کردن حرکت">+</button>
     </div>
-    <label class="check-row"><input id="professional-mode" type="checkbox">حالت حرفه‌ای؛ بدون خطوط راهنما</label>
+    <label class="pro-toggle">
+      <input id="professional-mode" type="checkbox" aria-label="حالت حرفه‌ای">
+      <span class="pro-switch" aria-hidden="true"><i></i></span>
+      <span class="pro-copy"><strong>حالت حرفه‌ای</strong><small id="pro-hint">خطوط راهنما روشن می‌مانند</small></span>
+    </label>
     <button id="start-game">شروع بازی</button>
     <p class="note">در صفحهٔ افقی، میز خودکار می‌چرخد.</p>
   </section>
@@ -69,7 +88,7 @@
     <p>۱) توپ را در جهت مخالف شوت بکشید و رها کنید.<br><br>
        ۲) برای پاس، توپ را از شکاف بین دو توپ عبور بدهید؛ برخورد با توپ دیگر خطاست و نوبت می‌سوزد.<br><br>
        ۳) توپ پس از عبور از خط میانی باید بایستد تا مسیر دروازه آزاد شود. برای گل باید تمام توپ از خط دروازه رد شود.<br><br>
-       ۴) تعداد حرکت و حالت حرفه‌ای را از منوی اصلی تنظیم کنید.</p>
+       ۴) حالت حرفه‌ای راهنماها را پنهان می‌کند و حداقل ۳ حرکت می‌خواهد؛ تعداد حرکت از منو تنظیم می‌شود.</p>
     <div class="tutorial-diagram" aria-label="نمونهٔ خط نشانه‌گیری">
       <svg viewBox="0 0 500 100" role="img" aria-hidden="true">
         <defs><marker id="aim-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#42e9ff"/></marker></defs>
@@ -104,13 +123,13 @@ const DAMP = 2.0;
 const STOP_SPEED = 12;
 const WINNING_SCORE = 3;
 const DEFAULT_MOVES_PER_TURN = 3;
-const MIN_MOVES_PER_TURN = 1, MAX_MOVES_PER_TURN = 9;
+const MIN_MOVES_PER_TURN = 1, MAX_MOVES_PER_TURN = 9, PROFESSIONAL_MIN_MOVES = 3;
 let movesPerTurn = DEFAULT_MOVES_PER_TURN, configuredMoves = DEFAULT_MOVES_PER_TURN;
 
 // پریست‌های تعادل (کلید ۱/۲/۳)
 const QP = new URLSearchParams(location.search);
 const PRESETS = {
-  "1": {name:"main.gd (عقب‌تر)", ratio:0.47, damp:2.0,  imp:10.0},
+  "1": {name:"main.gd (عقب‌تر)", ratio:0.465, damp:2.0, imp:10.0},
   "2": {name:"سخت‌تر",               ratio:0.42, damp:2.0,  imp:10.0},
   "3": {name:"آسان‌تر",              ratio:0.75, damp:2.0,  imp:10.0},
 };
@@ -420,6 +439,9 @@ const ctx = cv.getContext("2d");
 const menuEl = document.getElementById("menu");
 const tutorialEl = document.getElementById("tutorial");
 const proModeEl = document.getElementById("professional-mode");
+const proHintEl = document.getElementById("pro-hint");
+const moveMinusEl = document.getElementById("move-minus");
+const movePlusEl = document.getElementById("move-plus");
 const moveCountEl = document.getElementById("move-count");
 const startGameEl = document.getElementById("start-game");
 let scale=1, ox=0, oy=0, dpr=1, landscape=false;
@@ -438,7 +460,13 @@ function hitReset(p){
 function hitMenu(p){
   return landscape ? p.x>=1760&&p.x<=1895&&p.y<=95 : p.x>=968&&p.x<=1062&&p.y<=100;
 }
-function updateMoveCount(){ moveCountEl.textContent=fa(configuredMoves)+" حرکت در هر نوبت"; }
+function minimumMoveCount(){ return professionalMode?PROFESSIONAL_MIN_MOVES:MIN_MOVES_PER_TURN; }
+function updateMoveCount(){
+  moveCountEl.textContent=fa(configuredMoves)+" حرکت در هر نوبت";
+  moveMinusEl.disabled=configuredMoves<=minimumMoveCount();
+  movePlusEl.disabled=configuredMoves>=MAX_MOVES_PER_TURN;
+  proHintEl.textContent=professionalMode?"راهنماها خاموش · حداقل ۳ حرکت":"خطوط راهنما روشن می‌مانند";
+}
 function showMenu(){
   state=ST.MENU; dragging=false; dragBall=null; activeBall=null;
   tutorialEl.classList.add("hidden");
@@ -463,11 +491,15 @@ document.getElementById("tutorial-continue").addEventListener("click",()=>{
   try{localStorage.setItem("se-toop-tutorial-v1","seen");}catch(e){}
   startConfiguredGame();
 });
-proModeEl.addEventListener("change",()=>{ professionalMode=proModeEl.checked; });
-document.getElementById("move-minus").addEventListener("click",()=>{
-  configuredMoves=Math.max(MIN_MOVES_PER_TURN,configuredMoves-1); updateMoveCount();
+proModeEl.addEventListener("change",()=>{
+  professionalMode=proModeEl.checked;
+  if(professionalMode) configuredMoves=Math.max(configuredMoves,PROFESSIONAL_MIN_MOVES);
+  updateMoveCount();
 });
-document.getElementById("move-plus").addEventListener("click",()=>{
+moveMinusEl.addEventListener("click",()=>{
+  configuredMoves=Math.max(minimumMoveCount(),configuredMoves-1); updateMoveCount();
+});
+movePlusEl.addEventListener("click",()=>{
   configuredMoves=Math.min(MAX_MOVES_PER_TURN,configuredMoves+1); updateMoveCount();
 });
 startGameEl.addEventListener("click",hideMenuAndStart);
@@ -491,7 +523,11 @@ function onDown(e){
     if(d<=bestD){ bestD=d; best=b; }
   }
   dragBall=best; activeBall=best; dragging=best!==null;
-  if(dragging){ dragPos=p; sfx(720,760,0.05,0.08); }
+  if(dragging){
+    dragPos=p;
+    if(cv.setPointerCapture && e.pointerId!==undefined){try{cv.setPointerCapture(e.pointerId);}catch(err){}}
+    sfx(720,760,0.05,0.08);
+  }
 }
 function onMove(e){
   if(!dragging || !dragBall) return;
@@ -513,6 +549,9 @@ function onUp(e){
 cv.addEventListener("pointerdown",onDown,{passive:false});
 cv.addEventListener("pointermove",onMove,{passive:false});
 window.addEventListener("pointerup",onUp);
+window.addEventListener("pointercancel",()=>{
+  dragging=false; dragBall=null; activeBall=null;
+});
 window.addEventListener("keydown",e=>{
   if(["1","2","3"].includes(e.key)) location.search="?p="+e.key;
   if(e.key==="Escape") showMenu();
@@ -671,7 +710,7 @@ function drawBall(b){
   ctx.closePath();
   ctx.fillStyle="#f7f5ea"; ctx.fill();
   ctx.strokeStyle="rgba(199,189,163,0.9)"; ctx.lineWidth=2; ctx.stroke();
-  ctx.strokeStyle="rgba(92,140,217,0.42)"; ctx.lineWidth=2.5;
+  ctx.strokeStyle=player===1?"rgba(115,200,255,0.72)":"rgba(255,133,133,0.72)"; ctx.lineWidth=2.5;
   ctx.beginPath();
   ctx.moveTo(b.pts[1].x*0.62,b.pts[1].y*0.62);
   ctx.lineTo(0,0); ctx.lineTo(b.pts[5].x*0.68,b.pts[5].y*0.68);

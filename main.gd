@@ -29,6 +29,7 @@ const WINNING_SCORE := 3
 const DEFAULT_MOVES_PER_TURN := 3
 const MIN_MOVES_PER_TURN := 1
 const MAX_MOVES_PER_TURN := 9
+const PROFESSIONAL_MIN_MOVES := 3
 const MIX_RATE := 22050.0
 ## اندازهٔ طراحی صحنه (مستقل از اندازهٔ پنجره)
 const DESIGN_SIZE := Vector2(1080, 1920)
@@ -36,18 +37,19 @@ const DESIGN_SIZE := Vector2(1080, 1920)
 ## خط هجوم: اگر توپ پس از عبور از این خط متوقف شود، مسیر دروازه آزاد می‌شود.
 ## تعادل با جستجوی عددی روی ۲۱۶۰ شوت تنظیم شده (نه حدس):
 ##   حداکثر مسافت یک شوت = 320×10 / 2.0 = ۱۶۰۰px
-##   خط روی ۴۷٪ میز است (نسبت ۰٫۴۷)؛ از شروع توپ‌ها حدود ۴۴۷px فاصله دارد.
+##   خط روی ۴۶٫۵٪ میز است (نسبت ۰٫۴۶۵)؛ از شروع توپ‌ها حدود ۴۵۶px فاصله دارد.
 ##   با برد ۱۶۰۰px هنوز می‌توان با یک شوت پاس داد و دروازه را باز کرد.
 ##   تا دهانهٔ دروازه نیز مسیر شوت طلایی در دسترس می‌ماند.
 ##   با این تنظیم بخشی از فضای شوت‌های ممکن «طلایی» است؛ در عمل چون بازیکن
 ##   خط شکاف را می‌بیند، نرخ موفقیت واقعی به‌مراتب بالاتر است.
-const ATTACK_LINE_RATIO := 0.47
+const ATTACK_LINE_RATIO := 0.465
 const USER_SETTINGS_PATH := "user://se_toop_settings.cfg"
 
 # ---------------------------------------------------------------- وضعیت
 var state: GameState = GameState.WAITING_FOR_INPUT
 var balls: Array[RigidBody2D] = []
 var ball_visuals: Array[Node2D] = []
+var ball_crease_lines: Array[Line2D] = []
 var active_ball: RigidBody2D = null
 var other_balls: Array[RigidBody2D] = []
 var prev_active_pos := Vector2.ZERO
@@ -630,7 +632,8 @@ func _build_hud() -> void:
 		+ "۲) برای پاس، توپ را از شکاف دو توپ عبور دهید؛ برخورد با توپ دیگر خطاست و نوبت می‌سوزد.\n\n" \
 		+ "۳) پس از عبور توپ از خط میانی، صبر کنید تا بایستد و مسیر آزاد شود؛ " \
 		+ "برای گل باید تمام توپ از خط دروازه رد شود.\n\n" \
-		+ "۴) تعداد حرکت و حالت حرفه‌ای را از منوی اصلی تنظیم کنید."
+		+ "۴) حالت حرفه‌ای راهنماها را پنهان می‌کند و حداقل ۳ حرکت می‌خواهد؛ " \
+		+ "تعداد حرکت از منو تنظیم می‌شود."
 	tutorial_text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	tutorial_text.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	tutorial_guide_demo = _label(tutorial_panel, Vector2.ZERO, 24, Color(0.40, 0.91, 1.0))
@@ -794,7 +797,7 @@ func _layout_menu(view_size: Vector2, landscape: bool) -> void:
 	professional_button.position = Vector2(100, 382) * panel_scale
 	professional_button.size = Vector2(panel_ref.x - 200, 64) * panel_scale
 	professional_button.add_theme_font_size_override("font_size", roundi(20 * panel_scale))
-	professional_button.text = "حرفه‌ای: روشن" if professional_mode else "حرفه‌ای: خاموش"
+	professional_button.text = "حرفه‌ای: روشن (حداقل ۳)" if professional_mode else "حرفه‌ای: خاموش"
 	start_game_button.position = Vector2(72, panel_ref.y - 124) * panel_scale
 	start_game_button.size = Vector2(panel_ref.x - 144, 82) * panel_scale
 	start_game_button.add_theme_font_size_override("font_size", roundi(25 * panel_scale))
@@ -825,12 +828,20 @@ func _layout_tutorial(view_size: Vector2, landscape: bool) -> void:
 	tutorial_continue_button.size = Vector2(panel_ref.x - 144, 66) * panel_scale
 	tutorial_continue_button.add_theme_font_size_override("font_size", roundi(22 * panel_scale))
 
+func _minimum_configured_moves() -> int:
+	return PROFESSIONAL_MIN_MOVES if professional_mode else MIN_MOVES_PER_TURN
+
 func _update_move_count_label() -> void:
 	if move_count_label != null:
 		move_count_label.text = "تعداد حرکت مجاز: %s" % _fa(configured_moves)
+	if moves_down_button != null:
+		moves_down_button.disabled = configured_moves <= _minimum_configured_moves()
+	if moves_up_button != null:
+		moves_up_button.disabled = configured_moves >= MAX_MOVES_PER_TURN
 
 func _change_configured_moves(amount: int) -> void:
-	configured_moves = clampi(configured_moves + amount, MIN_MOVES_PER_TURN, MAX_MOVES_PER_TURN)
+	configured_moves = clampi(configured_moves + amount,
+		_minimum_configured_moves(), MAX_MOVES_PER_TURN)
 	_update_move_count_label()
 
 func _show_main_menu() -> void:
@@ -884,6 +895,10 @@ func _start_game_now() -> void:
 
 func _on_professional_toggled(enabled: bool) -> void:
 	professional_mode = enabled
+	if professional_mode:
+		configured_moves = maxi(configured_moves, PROFESSIONAL_MIN_MOVES)
+	professional_button.text = "حرفه‌ای: روشن (حداقل ۳)" if professional_mode else "حرفه‌ای: خاموش"
+	_update_move_count_label()
 	goal_meter_bg.visible = not professional_mode
 	goal_meter.visible = not professional_mode
 	if professional_mode:
@@ -977,6 +992,7 @@ func _spawn_balls() -> void:
 			pts[1] * 0.62, Vector2.ZERO, pts[5] * 0.68, pts[8] * 0.58
 		])
 		visual_root.add_child(crease)
+		ball_crease_lines.append(crease)
 		ball_visuals.append(visual_root)
 
 		ball.body_entered.connect(_on_ball_body_entered.bind(ball))
@@ -1000,6 +1016,9 @@ func _on_manual_reset_pressed() -> void:
 
 func _start_turn(player_idx: int) -> void:
 	current_player = player_idx
+	for crease in ball_crease_lines:
+		crease.default_color = Color(0.35, 0.72, 1.0, 0.72) if current_player == 1 \
+			else Color(1.0, 0.40, 0.42, 0.72)
 	moves_left = moves_per_turn
 	state = GameState.TURN_SETUP
 	active_ball = null
