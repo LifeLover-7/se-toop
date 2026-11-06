@@ -124,6 +124,7 @@ const STOP_SPEED = 12;
 const WINNING_SCORE = 3;
 const DEFAULT_MOVES_PER_TURN = 3;
 const MIN_MOVES_PER_TURN = 1, MAX_MOVES_PER_TURN = 9, PROFESSIONAL_MIN_MOVES = 3;
+const MIN_SHOT_DRAG = 24, PRO_MIN_SWIPE_SPEED = 120, PRO_MAX_SWIPE_SPEED = 1600;
 let movesPerTurn = DEFAULT_MOVES_PER_TURN, configuredMoves = DEFAULT_MOVES_PER_TURN;
 
 // پریست‌های تعادل (کلید ۱/۲/۳)
@@ -153,7 +154,8 @@ let activeBall = null, otherBalls = [], prevActive = {x:0,y:0}, shotOrigin = {x:
 let gapCrossed = false, gateOpen = false, shotCollided = false;
 let passLineA=null, passLineB=null;
 let gateAnim = {l:390, r:540, lt:390, rt:540};
-let dragging = false, dragBall = null, dragPos = {x:0,y:0};
+let dragging = false, dragBall = null, dragPos = {x:0,y:0}, dragStartPos = {x:0,y:0}, dragStartAt = 0;
+let dragLastPos = {x:0,y:0}, dragLastAt = 0, proMotionDistance = 0, proMotionDuration = 0;
 let player = 1, scores = [0,0], movesLeft = movesPerTurn;
 let shake = 0, parts = [], timers = [];
 let professionalMode = false;
@@ -353,9 +355,13 @@ function checkShot(){
   }
   // ۱) گل فقط وقتی ثبت می‌شود که تمام توپ از خط ورودی دروازه عبور کند.
   if(act.y+R <= GOAL.y+GOAL.h+6 && act.x-R>=GOAL.x && act.x+R<=GOAL.x+GOAL.w && gapOpenAt(act)){
-    burst(GOAL.x+GOAL.w/2, GOAL.y+40, 48, "#ffe066", 1.1, 220, 520);
-    sfx(440,900,0.24); shake=Math.max(shake,14);
-    finish("GOAL");
+    if(professionalMode && currentTurnMoveNumber()<PROFESSIONAL_MIN_MOVES){
+      finish("FOUL","در حالت حرفه‌ای، گل از حرکت سوم به بعد مجاز است؛ نوبت سوخت.");
+    } else {
+      burst(GOAL.x+GOAL.w/2, GOAL.y+40, 48, "#ffe066", 1.1, 220, 520);
+      sfx(440,900,0.24); shake=Math.max(shake,14);
+      finish("GOAL");
+    }
     return;
   }
   // ثبت عبور از شکاف
@@ -389,6 +395,8 @@ function judgeShot(){
   if(reachedGoal)       return finish("FOUL","دروازه بسته بود! اول باید باز شود.");
   return finish("FOUL","سوختی! توپ از شکاف پاس رد نشد.");
 }
+
+function currentTurnMoveNumber(){ return movesPerTurn-movesLeft+1; }
 
 function finish(kind, reason){
   if(kind==="GOAL"){
@@ -465,7 +473,7 @@ function updateMoveCount(){
   moveCountEl.textContent=fa(configuredMoves)+" حرکت در هر نوبت";
   moveMinusEl.disabled=configuredMoves<=minimumMoveCount();
   movePlusEl.disabled=configuredMoves>=MAX_MOVES_PER_TURN;
-  proHintEl.textContent=professionalMode?"راهنماها خاموش · حداقل ۳ حرکت":"خطوط راهنما روشن می‌مانند";
+  proHintEl.textContent=professionalMode?"سوایپ رو به جلو · سرعت انگشت = قدرت · گل از حرکت سوم":"خطوط راهنما روشن می‌مانند";
 }
 function showMenu(){
   state=ST.MENU; dragging=false; dragBall=null; activeBall=null;
@@ -505,6 +513,16 @@ movePlusEl.addEventListener("click",()=>{
 startGameEl.addEventListener("click",hideMenuAndStart);
 updateMoveCount();
 
+function trackProSwipeMotion(p, now){
+  const elapsed=(now-dragLastAt)/1000;
+  const step=Math.hypot(p.x-dragLastPos.x,p.y-dragLastPos.y);
+  // Ignore pauses between movement bursts so holding a finger does not dilute swipe power.
+  if(elapsed>0 && elapsed<=0.15 && step>0){
+    proMotionDistance+=step;
+    proMotionDuration+=elapsed;
+  }
+  dragLastPos={...p}; dragLastAt=now;
+}
 function onDown(e){
   e.preventDefault();
   audio();
@@ -524,7 +542,8 @@ function onDown(e){
   }
   dragBall=best; activeBall=best; dragging=best!==null;
   if(dragging){
-    dragPos=p;
+    dragPos=p; dragStartPos={...p}; dragStartAt=performance.now();
+    dragLastPos={...p}; dragLastAt=dragStartAt; proMotionDistance=0; proMotionDuration=0;
     if(cv.setPointerCapture && e.pointerId!==undefined){try{cv.setPointerCapture(e.pointerId);}catch(err){}}
     sfx(720,760,0.05,0.08);
   }
@@ -533,17 +552,33 @@ function onMove(e){
   if(!dragging || !dragBall) return;
   e.preventDefault();
   dragPos=toDesign(e);
+  if(professionalMode) trackProSwipeMotion(dragPos,performance.now());
 }
 function onUp(e){
   if(!dragging || !dragBall) return;
   dragging=false;
   const p=toDesign(e);
-  const pull={x:dragBall.p.x-p.x,y:dragBall.p.y-p.y};
-  const len=Math.hypot(pull.x,pull.y);
-  if(len>24){
-    const k=Math.min(len,MAX_DRAG)/len;
-    shoot(dragBall,{x:pull.x*k*P.imp,y:pull.y*k*P.imp});
-  } else activeBall=null;
+  if(professionalMode){
+    const now=performance.now();
+    trackProSwipeMotion(p,now);
+    const swipe={x:p.x-dragStartPos.x,y:p.y-dragStartPos.y};
+    const len=Math.hypot(swipe.x,swipe.y);
+    const elapsed=Math.max((now-dragStartAt)/1000,0.05);
+    let speed=len/elapsed;
+    if(proMotionDuration>0) speed=proMotionDistance/proMotionDuration;
+    if(len>=MIN_SHOT_DRAG){
+      const ratio=clamp((speed-PRO_MIN_SWIPE_SPEED)/(PRO_MAX_SWIPE_SPEED-PRO_MIN_SWIPE_SPEED),0,1);
+      const equivalentDrag=MIN_SHOT_DRAG+(MAX_DRAG-MIN_SHOT_DRAG)*ratio;
+      shoot(dragBall,{x:swipe.x/len*equivalentDrag*P.imp,y:swipe.y/len*equivalentDrag*P.imp});
+    } else activeBall=null;
+  } else {
+    const pull={x:dragBall.p.x-p.x,y:dragBall.p.y-p.y};
+    const len=Math.hypot(pull.x,pull.y);
+    if(len>MIN_SHOT_DRAG){
+      const k=Math.min(len,MAX_DRAG)/len;
+      shoot(dragBall,{x:pull.x*k*P.imp,y:pull.y*k*P.imp});
+    } else activeBall=null;
+  }
   dragBall=null;
 }
 cv.addEventListener("pointerdown",onDown,{passive:false});

@@ -22,6 +22,9 @@ const WALL_THICKNESS := 24.0
 const GOAL_RECT := Rect2(390, 140, 300, 78)
 const BALL_RADIUS := 36.0
 const MAX_DRAG_DIST := 320.0
+const MIN_SHOT_DRAG_DIST := 24.0
+const PRO_MIN_SWIPE_SPEED := 120.0
+const PRO_MAX_SWIPE_SPEED := 1600.0
 const IMPULSE_MULTIPLIER := 10.0
 const STOP_SPEED_THRESHOLD := 12.0
 const LINEAR_DAMP := 2.0
@@ -57,6 +60,12 @@ var shot_origin := Vector2.ZERO
 
 var is_dragging := false
 var drag_current_pos := Vector2.ZERO
+var drag_start_pos := Vector2.ZERO
+var drag_start_usec := 0
+var drag_last_pos := Vector2.ZERO
+var drag_last_usec := 0
+var pro_motion_distance := 0.0
+var pro_motion_usec := 0
 var drag_ball: RigidBody2D = null
 
 var current_player := 1
@@ -164,7 +173,6 @@ func _setup_camera() -> void:
 	get_viewport().size_changed.connect(_refresh_layout)
 	_refresh_layout()
 
-# ---------------------------------------------------------------- فونت فارسی
 ## فونت پیش‌فرض Godot هیچ گلیف فارسی ندارد؛ بدون این، تمام HUD مربع خالی می‌شود.
 func _setup_font() -> void:
 	var sys_font := SystemFont.new()
@@ -195,7 +203,6 @@ func _setup_font() -> void:
 	professional_button.add_theme_font_override("font", sys_font)
 	tutorial_continue_button.add_theme_font_override("font", sys_font)
 
-# ---------------------------------------------------------------- صدا
 func _setup_audio() -> void:
 	audio_out = AudioStreamPlayer.new()
 	audio_out.name = "SfxOut"
@@ -234,7 +241,6 @@ func _play_sfx(freq_start: float, freq_end: float, duration: float,
 		var s := sin(phase * TAU) * env * 0.42
 		playback.push_frame(Vector2(s, s))
 
-# ---------------------------------------------------------------- محیط و میز
 func _build_environment() -> void:
 	var bg := ColorRect.new()
 	bg.color = Color(0.09, 0.07, 0.06)
@@ -242,24 +248,19 @@ func _build_environment() -> void:
 	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(bg)
 
-	# سایهٔ میز
 	_rect(TABLE_RECT.position + Vector2(16, 20), TABLE_RECT.size, Color(0, 0, 0, 0.40))
 
-	# حاشیهٔ چوبی با لبهٔ روشن بالایی (حس برجستگی)
 	_rect(TABLE_RECT.position - Vector2(14, 14), TABLE_RECT.size + Vector2(28, 28),
 		Color(0.33, 0.20, 0.11))
 	_rect(TABLE_RECT.position - Vector2(14, 14), Vector2(TABLE_RECT.size.x + 28, 4),
 		Color(0.45, 0.29, 0.16))
 
-	# سطح میز
 	_rect(TABLE_RECT.position, TABLE_RECT.size, Color(0.46, 0.30, 0.17))
 
-	# رگه‌های چوب
 	for i in range(1, 8):
 		_rect(Vector2(TABLE_RECT.position.x + float(i) * 120.0, TABLE_RECT.position.y),
 			Vector2(3, TABLE_RECT.size.y), Color(0.40, 0.25, 0.13, 0.45))
 
-	# نوار ناحیهٔ هجومی (بالای خط هجوم)
 	var attack_y := _attack_line_y()
 	attack_band = Polygon2D.new()
 	attack_band.polygon = PackedVector2Array([
@@ -271,7 +272,6 @@ func _build_environment() -> void:
 	attack_band.color = Color(1.0, 0.86, 0.30, 0.055)
 	add_child(attack_band)
 
-	# خط هجوم
 	attack_line = Line2D.new()
 	attack_line.width = 5.0
 	attack_line.default_color = Color(1.0, 0.88, 0.30, 0.70)
@@ -281,7 +281,6 @@ func _build_environment() -> void:
 	])
 	add_child(attack_line)
 
-	# خط دروازه (چند پیکسل پایین‌تر از دروازه تا توپ رد شده حساب شود)
 	goal_line = Line2D.new()
 	goal_line.width = 4.0
 	goal_line.default_color = Color(0.35, 1.0, 0.55, 0.55)
@@ -291,14 +290,12 @@ func _build_environment() -> void:
 	])
 	add_child(goal_line)
 
-	# خط راهنمای شکاف پاس
 	target_gate_line = Line2D.new()
 	target_gate_line.width = 6.0
 	target_gate_line.default_color = Color(0.25, 0.92, 1.0, 0.60)
 	target_gate_line.visible = false
 	add_child(target_gate_line)
 
-	# راهنمای مسیر: خط ساده و نوک پیکانی
 	aim_line = Line2D.new()
 	aim_line.width = 9.0
 	aim_line.default_color = Color(0.25, 1.0, 0.45, 0.92)
@@ -358,15 +355,11 @@ func _rect(pos: Vector2, size: Vector2, color: Color) -> ColorRect:
 func _attack_line_y() -> float:
 	return TABLE_RECT.position.y + TABLE_RECT.size.y * ATTACK_LINE_RATIO
 
-# ---------------------------------------------------------------- دروازه
 func _build_goal() -> void:
-	# چارچوب دروازه
 	_rect(GOAL_RECT.position - Vector2(16, 16), GOAL_RECT.size + Vector2(32, 18),
 		Color(0.07, 0.24, 0.15))
-	# تور
 	_rect(GOAL_RECT.position, GOAL_RECT.size, Color(0.11, 0.50, 0.29))
 
-	# چراغ‌های LED
 	gate_led_left = _rect(Vector2(GOAL_RECT.position.x - 30, GOAL_RECT.position.y + 40),
 		Vector2(20, 20), Color(1.0, 0.15, 0.15))
 	gate_led_right = _rect(Vector2(GOAL_RECT.end.x + 10, GOAL_RECT.position.y + 40),
@@ -444,7 +437,6 @@ func _is_gate_open_for(p: Vector2) -> bool:
 	var gap_right := gate_right.position.x
 	return p.x - BALL_RADIUS > gap_left and p.x + BALL_RADIUS < gap_right
 
-# ---------------------------------------------------------------- ذرات
 func _build_particles() -> void:
 	goal_particles = CPUParticles2D.new()
 	goal_particles.position = Vector2(GOAL_RECT.get_center().x, GOAL_RECT.position.y + 40)
@@ -478,7 +470,6 @@ func _build_particles() -> void:
 	gate_particles.color = Color(0.25, 1.0, 0.65)
 	add_child(gate_particles)
 
-# ---------------------------------------------------------------- HUD
 func _panel_style(background: Color, border: Color, radius: int = 20) -> StyleBoxFlat:
 	var style := StyleBoxFlat.new()
 	style.bg_color = background
@@ -628,12 +619,12 @@ func _build_hud() -> void:
 	tutorial_title.text = "آموزش کوتاه"
 	tutorial_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	tutorial_text = _label(tutorial_panel, Vector2.ZERO, 22, Color(0.95, 0.92, 0.86))
-	tutorial_text.text = "۱) توپ را در جهت مخالف شوت بکشید و رها کنید.\n\n" \
+	tutorial_text.text = "۱) عادی: توپ را خلاف جهت شوت بکشید. " \
+		+ "حرفه‌ای: در جهت شوت سریع بکشید؛ سرعت انگشت قدرت را تعیین می‌کند.\n\n" \
 		+ "۲) برای پاس، توپ را از شکاف دو توپ عبور دهید؛ برخورد با توپ دیگر خطاست و نوبت می‌سوزد.\n\n" \
 		+ "۳) پس از عبور توپ از خط میانی، صبر کنید تا بایستد و مسیر آزاد شود؛ " \
 		+ "برای گل باید تمام توپ از خط دروازه رد شود.\n\n" \
-		+ "۴) حالت حرفه‌ای راهنماها را پنهان می‌کند و حداقل ۳ حرکت می‌خواهد؛ " \
-		+ "تعداد حرکت از منو تنظیم می‌شود."
+		+ "۴) در حالت حرفه‌ای، گل از حرکت سوم به بعد مجاز است؛ تعداد حرکت را از منو تنظیم کنید."
 	tutorial_text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	tutorial_text.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	tutorial_guide_demo = _label(tutorial_panel, Vector2.ZERO, 24, Color(0.40, 0.91, 1.0))
@@ -797,7 +788,8 @@ func _layout_menu(view_size: Vector2, landscape: bool) -> void:
 	professional_button.position = Vector2(100, 382) * panel_scale
 	professional_button.size = Vector2(panel_ref.x - 200, 64) * panel_scale
 	professional_button.add_theme_font_size_override("font_size", roundi(20 * panel_scale))
-	professional_button.text = "حرفه‌ای: روشن (حداقل ۳)" if professional_mode else "حرفه‌ای: خاموش"
+	professional_button.text = "حرفه‌ای: روشن (سوایپ جلو · گل از حرکت ۳)" \
+		if professional_mode else "حرفه‌ای: خاموش"
 	start_game_button.position = Vector2(72, panel_ref.y - 124) * panel_scale
 	start_game_button.size = Vector2(panel_ref.x - 144, 82) * panel_scale
 	start_game_button.add_theme_font_size_override("font_size", roundi(25 * panel_scale))
@@ -897,7 +889,8 @@ func _on_professional_toggled(enabled: bool) -> void:
 	professional_mode = enabled
 	if professional_mode:
 		configured_moves = maxi(configured_moves, PROFESSIONAL_MIN_MOVES)
-	professional_button.text = "حرفه‌ای: روشن (حداقل ۳)" if professional_mode else "حرفه‌ای: خاموش"
+	professional_button.text = "حرفه‌ای: روشن (سوایپ جلو · گل از حرکت ۳)" \
+		if professional_mode else "حرفه‌ای: خاموش"
 	_update_move_count_label()
 	goal_meter_bg.visible = not professional_mode
 	goal_meter.visible = not professional_mode
@@ -925,7 +918,6 @@ func _show_toast(text: String) -> void:
 	tw.tween_interval(6.0)
 	tw.tween_property(toast_label, "modulate:a", 0.0, 0.8)
 
-# ---------------------------------------------------------------- توپ‌ها
 func _spawn_balls() -> void:
 	for i in range(3):
 		var ball := RigidBody2D.new()
@@ -958,24 +950,20 @@ func _spawn_balls() -> void:
 		for v in range(12):
 			var ang := float(v) * TAU / 12.0
 			var r := BALL_RADIUS * randf_range(0.86, 1.04)
-			# کشیدگی جزئی تا کاغذ مچاله طبیعی‌تر باشد
 			r *= 1.0 + 0.10 * cos(ang * 2.0 + blend)
 			pts.append(Vector2(cos(ang) * r, sin(ang) * r))
 
-		# سایه
 		var shadow := Polygon2D.new()
 		shadow.polygon = pts
 		shadow.color = Color(0, 0, 0, 0.30)
 		shadow.position = Vector2(6, 8)
 		visual_root.add_child(shadow)
 
-		# بدنهٔ کاغذ
 		var body := Polygon2D.new()
 		body.polygon = pts
 		body.color = Color(0.97, 0.96, 0.91)
 		visual_root.add_child(body)
 
-		# لبهٔ ملایم
 		var outline := Line2D.new()
 		outline.width = 2.0
 		outline.default_color = Color(0.78, 0.74, 0.64, 0.55)
@@ -984,7 +972,6 @@ func _spawn_balls() -> void:
 		outline.points = loop
 		visual_root.add_child(outline)
 
-		# چروک‌ها / خطوط دفتر
 		var crease := Line2D.new()
 		crease.width = 2.5
 		crease.default_color = Color(0.36, 0.55, 0.85, 0.42)
@@ -1000,7 +987,6 @@ func _spawn_balls() -> void:
 		balls.append(ball)
 
 
-# ---------------------------------------------------------------- جریان بازی
 func _start_new_match() -> void:
 	scores = [0, 0]
 	current_player = 1
@@ -1065,7 +1051,6 @@ func _start_turn(player_idx: int) -> void:
 func _switch_turn() -> void:
 	_start_turn(2 if current_player == 1 else 1)
 
-# ---------------------------------------------------------------- ورودی
 func _input(event: InputEvent) -> void:
 	# تا وقتی سیستم لمسی را به ماوس تبدیل نکرده، کلیک ماوس هم پذیرفته می‌شود
 	var pointing := event is InputEventScreenTouch or event is InputEventMouseButton \
@@ -1105,13 +1090,30 @@ func _begin_drag(pos: Vector2) -> void:
 	is_dragging = best != null
 	if is_dragging:
 		drag_current_pos = pos
+		drag_start_pos = pos
+		drag_start_usec = Time.get_ticks_usec()
+		drag_last_pos = pos
+		drag_last_usec = drag_start_usec
+		pro_motion_distance = 0.0
+		pro_motion_usec = 0
 		if not professional_mode:
 			_update_target_gate_preview(best)
 		_play_sfx(720.0, 760.0, 0.05, -22.0)
 
+func _track_pro_swipe_motion(pos: Vector2, now_usec: int) -> void:
+	var elapsed_usec := now_usec - drag_last_usec
+	var step_distance := pos.distance_to(drag_last_pos)
+	# Ignore pauses between movement bursts so holding the finger does not dilute power.
+	if elapsed_usec > 0 and elapsed_usec <= 150000 and step_distance > 0.0:
+		pro_motion_distance += step_distance
+		pro_motion_usec += elapsed_usec
+	drag_last_pos = pos
+	drag_last_usec = now_usec
+
 func _update_drag(pos: Vector2) -> void:
 	drag_current_pos = pos
 	if professional_mode:
+		_track_pro_swipe_motion(pos, Time.get_ticks_usec())
 		aim_line.visible = false
 		aim_tip.visible = false
 		target_gate_line.visible = false
@@ -1144,12 +1146,32 @@ func _end_drag(pos: Vector2) -> void:
 	target_gate_line.visible = false
 	if drag_ball == null:
 		return
-	var pull := drag_ball.global_position - pos
-	if pull.length() > 24.0:
-		_shoot_ball(drag_ball, pull.limit_length(MAX_DRAG_DIST) * IMPULSE_MULTIPLIER)
+	if professional_mode:
+		var now_usec := Time.get_ticks_usec()
+		_track_pro_swipe_motion(pos, now_usec)
+		var swipe := pos - drag_start_pos
+		var elapsed := maxf((now_usec - drag_start_usec) / 1000000.0, 0.05)
+		var swipe_speed := swipe.length() / elapsed
+		if pro_motion_usec > 0:
+			swipe_speed = pro_motion_distance / (float(pro_motion_usec) / 1000000.0)
+		if swipe.length() >= MIN_SHOT_DRAG_DIST:
+			var power_ratio := clampf(
+				(swipe_speed - PRO_MIN_SWIPE_SPEED) / (PRO_MAX_SWIPE_SPEED - PRO_MIN_SWIPE_SPEED),
+				0.0, 1.0)
+			var equivalent_drag := lerpf(MIN_SHOT_DRAG_DIST, MAX_DRAG_DIST, power_ratio)
+			_shoot_ball(drag_ball, swipe.normalized() * equivalent_drag * IMPULSE_MULTIPLIER)
+		else:
+			active_ball = null
 	else:
-		active_ball = null
+		var pull := drag_ball.global_position - pos
+		if pull.length() > MIN_SHOT_DRAG_DIST:
+			_shoot_ball(drag_ball, pull.limit_length(MAX_DRAG_DIST) * IMPULSE_MULTIPLIER)
+		else:
+			active_ball = null
 	drag_ball = null
+
+func _current_turn_move_number() -> int:
+	return moves_per_turn - moves_left + 1
 
 func _update_target_gate_preview(selected: RigidBody2D) -> void:
 	if professional_mode:
@@ -1163,7 +1185,6 @@ func _update_target_gate_preview(selected: RigidBody2D) -> void:
 		target_gate_line.visible = true
 		target_gate_line.points = PackedVector2Array([others[0], others[1]])
 
-# ---------------------------------------------------------------- شوت
 func _shoot_ball(ball: RigidBody2D, impulse: Vector2) -> void:
 	state = GameState.BALLS_MOVING
 	prev_active_pos = ball.global_position
@@ -1187,7 +1208,6 @@ func _shoot_ball(ball: RigidBody2D, impulse: Vector2) -> void:
 	status_label.text = ""
 	_update_hud()
 
-# ---------------------------------------------------------------- هر فریم
 func _process(delta: float) -> void:
 	if main_camera == null:
 		return
@@ -1210,7 +1230,6 @@ func _process(delta: float) -> void:
 func _trigger_shake(amount: float) -> void:
 	shake_strength = maxf(shake_strength, amount)
 
-# ---------------------------------------------------------------- فیزیک/داوری
 func _physics_process(_delta: float) -> void:
 	if state == GameState.TURN_SETUP:
 		var setup_stopped := true
@@ -1247,7 +1266,10 @@ func _physics_process(_delta: float) -> void:
 		and cur.x >= GOAL_RECT.position.x + BALL_RADIUS \
 		and cur.x <= GOAL_RECT.end.x - BALL_RADIUS \
 		and _is_gate_open_for(cur):
-		_finish_shot(ShotKind.GOAL)
+		if professional_mode and _current_turn_move_number() < PROFESSIONAL_MIN_MOVES:
+			_finish_shot(ShotKind.FOUL, "در حالت حرفه‌ای، گل از حرکت سوم به بعد مجاز است؛ نوبت سوخت.")
+		else:
+			_finish_shot(ShotKind.GOAL)
 		return
 
 	# عبور از خط بین دو توپ در هر فریم ثبت می‌شود؛ این کار پیش از داوری خروج
@@ -1290,7 +1312,6 @@ func _on_ball_body_entered(body: Node, source_ball: RigidBody2D) -> void:
 		_trigger_shake(7.0)
 		_play_sfx(160.0, 95.0, 0.13)
 
-# ---------------------------------------------------------------- داوری شوت
 ## ترتیب داوری اصلاح‌شده: ابتدا دستاوردها (گل / عبور از شکاف / باز کردن دروازه)
 ## ثبت می‌شوند و تنها اگر هیچ‌کدام رخ نداده باشد خطا اعلام می‌شود.
 func _judge_shot() -> void:
@@ -1390,7 +1411,6 @@ func _delayed_turn(delay_sec: float) -> void:
 	if state == GameState.TRANSITION:
 		_switch_turn()
 
-# ---------------------------------------------------------------- HUD
 func _update_hud() -> void:
 	var mark1 := "▶ " if current_player == 1 else "   "
 	var mark2 := "▶ " if current_player == 2 else "   "
