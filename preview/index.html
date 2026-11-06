@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>سه توپ — پیش‌نمایش بازی (main.gd v2.3)</title>
+<title>سه توپ — پیش‌نمایش بازی (main.gd v2.4)</title>
 <style>
   html,body{margin:0;height:100%;background:#0b0806;overflow:hidden;
     font-family:"Vazirmatn","Segoe UI",Tahoma,system-ui,sans-serif;touch-action:none}
@@ -67,8 +67,8 @@
   <section class="card" aria-label="آموزش کوتاه">
     <h1>آموزش کوتاه</h1>
     <p>۱) توپ را در جهت مخالف شوت بکشید و رها کنید.<br><br>
-       ۲) عبور از شکاف بین دو توپ پاس صحیح است؛ برخورد با توپ دیگر خطاست و نوبت می‌سوزد.<br><br>
-       ۳) عبور از خط میانی میز دروازه را باز می‌کند. برای گل باید تمام توپ از خط دروازه رد شود.<br><br>
+       ۲) برای پاس، توپ را از شکاف بین دو توپ عبور بدهید؛ برخورد با توپ دیگر خطاست و نوبت می‌سوزد.<br><br>
+       ۳) توپ پس از عبور از خط میانی باید بایستد تا مسیر دروازه آزاد شود. برای گل باید تمام توپ از خط دروازه رد شود.<br><br>
        ۴) تعداد حرکت و حالت حرفه‌ای را از منوی اصلی تنظیم کنید.</p>
     <div class="tutorial-diagram" aria-label="نمونهٔ خط نشانه‌گیری">
       <svg viewBox="0 0 500 100" role="img" aria-hidden="true">
@@ -87,7 +87,7 @@
 <script>
 "use strict";
 /* ==================================================================
-   آینهٔ مرورگری «سه توپ» — هم‌خوان با main.gd نسخهٔ ۲.۳
+   آینهٔ مرورگری «سه توپ» — هم‌خوان با main.gd نسخهٔ ۲.۴
    همهٔ ثابت‌ها، هندسه و منطق داوری از main.gd گرفته شده‌اند.
    این فایل خودِ موتور Godot نیست؛ شبیه‌سازی قوانین برای تست تعادل است.
 ================================================================== */
@@ -131,7 +131,7 @@ const ST = {MENU:0, SETUP:1, WAIT:2, MOVING:3, TRANS:4, OVER:5};
 let state = ST.MENU;
 let balls = [];
 let activeBall = null, otherBalls = [], prevActive = {x:0,y:0}, shotOrigin = {x:0,y:0};
-let gapCrossed = false, gateOpen = false, shotOpened = false, shotCollided = false;
+let gapCrossed = false, gateOpen = false, shotCollided = false;
 let passLineA=null, passLineB=null;
 let gateAnim = {l:390, r:540, lt:390, rt:540};
 let dragging = false, dragBall = null, dragPos = {x:0,y:0};
@@ -212,7 +212,7 @@ function startTurn(p){
   movesLeft = movesPerTurn;
   state = ST.SETUP;
   activeBall=null; otherBalls=[]; dragBall=null; dragging=false; gapCrossed=false;
-  shotOpened=false; shotCollided=false; passLineA=null; passLineB=null;
+  shotCollided=false; passLineA=null; passLineB=null;
   setGate(false, true);
   const base=[{x:360,y:1520},{x:540,y:1390},{x:720,y:1520}];
   balls.forEach((b,i)=>{
@@ -251,7 +251,7 @@ function shoot(ball, impulse){
   gapCrossed = false;
   otherBalls = balls.filter(b=>b!==ball);
   passLineA={...otherBalls[0].p}; passLineB={...otherBalls[1].p};
-  shotOpened=false; shotCollided=false;
+  shotCollided=false;
   ball.v.x += impulse.x; ball.v.y += impulse.y;
   ball.spin += rnd(-1400,1400)/900;
   sfx(280,150,0.08);
@@ -345,9 +345,6 @@ function checkShot(){
       gapCrossed = true; sfx(540,780,0.10);
     }
   }
-  for(const b of balls){
-    if(b.p.y < ATTACK_Y){ shotOpened=true; setGate(true); break; }
-  }
   prevActive = {...act};
 
   // ۲) بیرون از زمین
@@ -362,7 +359,7 @@ function judgeShot(){
   if(shotCollided) return finish("FOUL","برخورد با توپ دیگر! نوبت سوخت.");
   const act = activeBall.p;
   const crossed = gapCrossed || !!(passLineA && passLineB && segInt(shotOrigin,act,passLineA,passLineB));
-  const opened = shotOpened || balls.some(b=>b.p.y < ATTACK_Y);
+  const opened = balls.some(b=>b.p.y < ATTACK_Y);
   const reachedGoal = act.y <= GOAL.y+GOAL.h+R;
 
   if(opened) setGate(true);
@@ -405,12 +402,7 @@ function finish(kind, reason){
     afterDelay(1.2, ()=>{ if(state===ST.TRANS) startTurn(player===1?2:1); });
   } else {
     state = ST.WAIT;
-    if(kind==="OPENER" || gateOpen){
-      statusText = "";
-    } else {
-      statusText = "پاس صحیح! حرکت بعدی.";
-      showBanner("پاس صحیح", "#73f2ff");
-    }
+    statusText = "";
     updateHud();
   }
 }
@@ -700,9 +692,9 @@ function drawScoreCard(x,y,w,h,name,score,color,active,small=false){
   ctx.strokeStyle=color; ctx.globalAlpha=active?0.9:0.42; ctx.lineWidth=active?2.5:1.5; ctx.stroke();
   ctx.globalAlpha=alpha; ctx.fillStyle=color; rr(x+5,y+7,5,h-14,3); ctx.fill();
   ctx.textBaseline="middle"; ctx.textAlign="left";
-  ctx.font=`bold ${small?30:35}px Vazirmatn,Tahoma,sans-serif`; ctx.fillStyle="#fff4dc";
+  ctx.font=`bold ${small?34:40}px Vazirmatn,Tahoma,sans-serif`; ctx.fillStyle="#fff4dc";
   ctx.fillText(fa(score),x+24,y+h/2+1);
-  ctx.textAlign="right"; ctx.font=`${small?18:21}px Vazirmatn,Tahoma,sans-serif`;
+  ctx.textAlign="right"; ctx.font=`600 ${small?20:23}px Vazirmatn,Tahoma,sans-serif`;
   ctx.fillStyle=active?"#f4e9d5":"#aaa9a5";
   ctx.fillText(name,x+w-18,y+h/2+1);
   if(active){ctx.beginPath();ctx.arc(x+w-10,y+10,3,0,Math.PI*2);ctx.fillStyle=color;ctx.fill();}
@@ -718,9 +710,9 @@ function drawHud(){
   drawScoreCard(15,7,282,51,"بازیکن ۱",scores[0],"#73c8ff",player===1);
   drawScoreCard(15,68,282,51,"بازیکن ۲",scores[1],"#ff8585",player===2);
 
-  ctx.textAlign="right"; ctx.fillStyle="#f2f2f2"; ctx.font="24px Vazirmatn,Tahoma,sans-serif";
+  ctx.textAlign="right"; ctx.fillStyle="#f2f2f2"; ctx.font="600 26px Vazirmatn,Tahoma,sans-serif";
   ctx.fillText(turnText,740,34);
-  ctx.fillStyle="#d1c8b8"; ctx.font="20px Vazirmatn,Tahoma,sans-serif";
+  ctx.fillStyle="#d1c8b8"; ctx.font="600 22px Vazirmatn,Tahoma,sans-serif";
   ctx.fillText(statusText,740,76);
   if(!professionalMode){
     ctx.fillStyle="rgba(255,255,255,0.12)"; rr(315,101,270,10,5); ctx.fill();
@@ -749,9 +741,9 @@ function drawHudLandscape(){
   ctx.fillStyle="rgba(10,13,17,0.96)";ctx.fillRect(0,0,1920,112);
   drawScoreCard(16,6,282,46,"بازیکن ۱",scores[0],"#73c8ff",player===1,true);
   drawScoreCard(16,60,282,46,"بازیکن ۲",scores[1],"#ff8585",player===2,true);
-  ctx.textAlign="right";ctx.font="23px Vazirmatn,Tahoma,sans-serif";ctx.fillStyle="#f2f2f2";
+  ctx.textAlign="right";ctx.font="25px Vazirmatn,Tahoma,sans-serif";ctx.fillStyle="#f2f2f2";
   ctx.fillText(turnText,1360,30);
-  ctx.font="19px Vazirmatn,Tahoma,sans-serif";ctx.fillStyle="#d1c8b8";
+  ctx.font="21px Vazirmatn,Tahoma,sans-serif";ctx.fillStyle="#d1c8b8";
   ctx.fillText(statusText,1360,73);
   if(!professionalMode){
     ctx.fillStyle="rgba(255,255,255,0.12)";rr(820,96,250,9,4);ctx.fill();

@@ -1,5 +1,5 @@
 extends Node2D
-## سه‌توپ — نسخهٔ آرکید دو‌نفره (Phase 2.3)
+## سه‌توپ — نسخهٔ آرکید دو‌نفره (Phase 2.4)
 ##
 ## ارتقاها نسبت به Phase 2:
 ##  • رفع باگ مسدودکننده: شوتی که فقط بازکنندهٔ دروازه است دیگر «سوختی» اعلام نمی‌شود.
@@ -33,7 +33,7 @@ const MIX_RATE := 22050.0
 ## اندازهٔ طراحی صحنه (مستقل از اندازهٔ پنجره)
 const DESIGN_SIZE := Vector2(1080, 1920)
 
-## خط هجوم: عبور هر یک از توپ‌ها از این خط دروازه را باز می‌کند.
+## خط هجوم: اگر توپ پس از عبور از این خط متوقف شود، مسیر دروازه آزاد می‌شود.
 ## تعادل با جستجوی عددی روی ۲۱۶۰ شوت تنظیم شده (نه حدس):
 ##   حداکثر مسافت یک شوت = 320×10 / 2.0 = ۱۶۰۰px
 ##   خط روی ۴۷٪ میز است (نسبت ۰٫۴۷)؛ از شروع توپ‌ها حدود ۴۴۷px فاصله دارد.
@@ -81,7 +81,6 @@ var gate_right: AnimatableBody2D
 var gate_led_left: ColorRect
 var gate_led_right: ColorRect
 var gate_open := false
-var shot_opened := false
 var gap_crossed := false
 var shot_collided := false
 var pass_line_a := Vector2.ZERO
@@ -98,6 +97,7 @@ var menu_overlay: ColorRect
 var menu_panel: Panel
 var score_card_p1: Panel
 var score_card_p2: Panel
+var top_info_card: Panel
 var menu_kicker: Label
 var menu_emblem: Label
 var menu_accent: ColorRect
@@ -117,6 +117,8 @@ var start_game_button: Button
 var menu_button: Button
 var p1_score_label: Label
 var p2_score_label: Label
+var p1_score_value: Label
+var p2_score_value: Label
 var turn_info_label: Label
 var status_label: Label
 var banner_label: Label
@@ -176,9 +178,10 @@ func _setup_font() -> void:
 		font_ready = false
 		_show_toast("Persian font not found - install Vazirmatn/Noto Naskh Arabic")
 		return
-	var labels: Array[Label] = [p1_score_label, p2_score_label, turn_info_label,
-		status_label, banner_label, toast_label, menu_kicker, menu_title, menu_hint,
-		menu_emblem, move_count_label, tutorial_title, tutorial_text, tutorial_guide_demo]
+	var labels: Array[Label] = [p1_score_label, p2_score_label, p1_score_value,
+		p2_score_value, turn_info_label, status_label, banner_label, toast_label,
+		menu_kicker, menu_title, menu_hint, menu_emblem, move_count_label,
+		tutorial_title, tutorial_text, tutorial_guide_demo]
 	for lbl in labels:
 		if lbl != null:
 			lbl.add_theme_font_override("font", sys_font)
@@ -528,13 +531,22 @@ func _build_hud() -> void:
 	score_card_p2.add_theme_stylebox_override("panel", _panel_style(
 		Color(0.22, 0.055, 0.075, 0.96), Color(0.96, 0.35, 0.39, 0.72), 14))
 	hud_root.add_child(score_card_p2)
+	top_info_card = Panel.new()
+	top_info_card.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	top_info_card.add_theme_stylebox_override("panel", _panel_style(
+		Color(0.045, 0.07, 0.085, 0.94), Color(0.50, 0.59, 0.62, 0.38), 14))
+	hud_root.add_child(top_info_card)
 
-	p1_score_label = _label(hud_root, Vector2.ZERO, 26, Color(0.55, 0.84, 1.0))
-	p1_score_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	p2_score_label = _label(hud_root, Vector2.ZERO, 26, Color(1.0, 0.58, 0.58))
-	p2_score_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	turn_info_label = _label(hud_root, Vector2.ZERO, 24, Color(0.95, 0.95, 0.95))
-	status_label = _label(hud_root, Vector2.ZERO, 21, Color(1.0, 0.90, 0.40))
+	p1_score_label = _label(hud_root, Vector2.ZERO, 20, Color(0.72, 0.88, 0.98))
+	p1_score_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	p2_score_label = _label(hud_root, Vector2.ZERO, 20, Color(1.0, 0.78, 0.78))
+	p2_score_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	p1_score_value = _label(hud_root, Vector2.ZERO, 34, Color.WHITE)
+	p1_score_value.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	p2_score_value = _label(hud_root, Vector2.ZERO, 34, Color.WHITE)
+	p2_score_value.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	turn_info_label = _label(hud_root, Vector2.ZERO, 25, Color(0.98, 0.96, 0.90))
+	status_label = _label(hud_root, Vector2.ZERO, 22, Color(1.0, 0.90, 0.56))
 
 	goal_meter_bg = ColorRect.new()
 	goal_meter_bg.color = Color(1, 1, 1, 0.16)
@@ -615,8 +627,9 @@ func _build_hud() -> void:
 	tutorial_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	tutorial_text = _label(tutorial_panel, Vector2.ZERO, 22, Color(0.95, 0.92, 0.86))
 	tutorial_text.text = "۱) توپ را در جهت مخالف شوت بکشید و رها کنید.\n\n" \
-		+ "۲) عبور از شکاف پاس صحیح است؛ برخورد با توپ دیگر خطاست و نوبت می‌سوزد.\n\n" \
-		+ "۳) عبور از خط میانی دروازه را باز می‌کند؛ برای گل باید تمام توپ از خط دروازه رد شود.\n\n" \
+		+ "۲) برای پاس، توپ را از شکاف دو توپ عبور دهید؛ برخورد با توپ دیگر خطاست و نوبت می‌سوزد.\n\n" \
+		+ "۳) پس از عبور توپ از خط میانی، صبر کنید تا بایستد و مسیر آزاد شود؛ " \
+		+ "برای گل باید تمام توپ از خط دروازه رد شود.\n\n" \
 		+ "۴) تعداد حرکت و حالت حرفه‌ای را از منوی اصلی تنظیم کنید."
 	tutorial_text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	tutorial_text.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
@@ -634,6 +647,8 @@ func _label(parent: Control, initial_position: Vector2, font_size: int, color: C
 	label.position = initial_position
 	label.add_theme_font_size_override("font_size", font_size)
 	label.add_theme_color_override("font_color", color)
+	label.add_theme_color_override("font_outline_color", Color(0.0, 0.0, 0.0, 0.62))
+	label.add_theme_constant_override("outline_size", 1)
 	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	parent.add_child(label)
@@ -689,14 +704,20 @@ func _layout_hud(view_size: Vector2, landscape: bool) -> void:
 		score_card_p1.size = Vector2(278, 44) * scale_ui
 		score_card_p2.position = origin + Vector2(16, 61) * scale_ui
 		score_card_p2.size = Vector2(278, 44) * scale_ui
-		_layout_label(p1_score_label, Rect2(origin + Vector2(26, 5) * scale_ui,
-			Vector2(258, 45) * scale_ui), roundi(29 * scale_ui))
-		_layout_label(p2_score_label, Rect2(origin + Vector2(26, 60) * scale_ui,
-			Vector2(258, 45) * scale_ui), roundi(29 * scale_ui))
-		_layout_label(turn_info_label, Rect2(origin + Vector2(330, 8) * scale_ui,
-			Vector2(600, 42) * scale_ui), roundi(24 * scale_ui))
-		_layout_label(status_label, Rect2(origin + Vector2(330, 52) * scale_ui,
-			Vector2(780, 38) * scale_ui), roundi(20 * scale_ui))
+		_layout_label(p1_score_value, Rect2(origin + Vector2(24, 5) * scale_ui,
+			Vector2(48, 42) * scale_ui), roundi(31 * scale_ui))
+		_layout_label(p2_score_value, Rect2(origin + Vector2(24, 60) * scale_ui,
+			Vector2(48, 42) * scale_ui), roundi(31 * scale_ui))
+		_layout_label(p1_score_label, Rect2(origin + Vector2(78, 5) * scale_ui,
+			Vector2(205, 42) * scale_ui), roundi(19 * scale_ui))
+		_layout_label(p2_score_label, Rect2(origin + Vector2(78, 60) * scale_ui,
+			Vector2(205, 42) * scale_ui), roundi(19 * scale_ui))
+		top_info_card.position = origin + Vector2(315, 5) * scale_ui
+		top_info_card.size = Vector2(650, 102) * scale_ui
+		_layout_label(turn_info_label, Rect2(origin + Vector2(335, 7) * scale_ui,
+			Vector2(590, 42) * scale_ui), roundi(26 * scale_ui))
+		_layout_label(status_label, Rect2(origin + Vector2(335, 50) * scale_ui,
+			Vector2(600, 36) * scale_ui), roundi(21 * scale_ui))
 		goal_meter_bg.position = origin + Vector2(330, 96) * scale_ui
 		goal_meter_bg.size = Vector2(250, 9) * scale_ui
 		reset_btn.position = origin + Vector2(1500, 13) * scale_ui
@@ -712,14 +733,20 @@ func _layout_hud(view_size: Vector2, landscape: bool) -> void:
 		score_card_p1.size = Vector2(292, 53) * scale_ui
 		score_card_p2.position = origin + Vector2(12, 66) * scale_ui
 		score_card_p2.size = Vector2(292, 53) * scale_ui
-		_layout_label(p1_score_label, Rect2(origin + Vector2(23, 5) * scale_ui,
-			Vector2(270, 53) * scale_ui), roundi(31 * scale_ui))
-		_layout_label(p2_score_label, Rect2(origin + Vector2(23, 66) * scale_ui,
-			Vector2(270, 53) * scale_ui), roundi(31 * scale_ui))
-		_layout_label(turn_info_label, Rect2(origin + Vector2(315, 10) * scale_ui,
-			Vector2(430, 42) * scale_ui), roundi(23 * scale_ui))
-		_layout_label(status_label, Rect2(origin + Vector2(315, 58) * scale_ui,
-			Vector2(430, 36) * scale_ui), roundi(20 * scale_ui))
+		_layout_label(p1_score_value, Rect2(origin + Vector2(22, 5) * scale_ui,
+			Vector2(58, 51) * scale_ui), roundi(36 * scale_ui))
+		_layout_label(p2_score_value, Rect2(origin + Vector2(22, 66) * scale_ui,
+			Vector2(58, 51) * scale_ui), roundi(36 * scale_ui))
+		_layout_label(p1_score_label, Rect2(origin + Vector2(86, 5) * scale_ui,
+			Vector2(207, 51) * scale_ui), roundi(22 * scale_ui))
+		_layout_label(p2_score_label, Rect2(origin + Vector2(86, 66) * scale_ui,
+			Vector2(207, 51) * scale_ui), roundi(22 * scale_ui))
+		top_info_card.position = origin + Vector2(310, 5) * scale_ui
+		top_info_card.size = Vector2(435, 92) * scale_ui
+		_layout_label(turn_info_label, Rect2(origin + Vector2(326, 8) * scale_ui,
+			Vector2(405, 41) * scale_ui), roundi(24 * scale_ui))
+		_layout_label(status_label, Rect2(origin + Vector2(326, 49) * scale_ui,
+			Vector2(405, 38) * scale_ui), roundi(21 * scale_ui))
 		goal_meter_bg.position = origin + Vector2(315, 101) * scale_ui
 		goal_meter_bg.size = Vector2(240, 9) * scale_ui
 		reset_btn.position = origin + Vector2(752, 18) * scale_ui
@@ -978,7 +1005,6 @@ func _start_turn(player_idx: int) -> void:
 	active_ball = null
 	other_balls.clear()
 	shot_collided = false
-	shot_opened = false
 	gap_crossed = false
 	pass_line_valid = false
 	drag_ball = null
@@ -1124,7 +1150,6 @@ func _shoot_ball(ball: RigidBody2D, impulse: Vector2) -> void:
 	prev_active_pos = ball.global_position
 	shot_origin = ball.global_position
 	gap_crossed = false
-	shot_opened = false
 	shot_collided = false
 
 	other_balls.clear()
@@ -1214,13 +1239,6 @@ func _physics_process(_delta: float) -> void:
 			gap_crossed = true
 			_play_sfx(540.0, 780.0, 0.09)
 
-	# عبور هر یک از توپ‌ها از خط هجوم دروازه را باز می‌کند.
-	for b in balls:
-		if b.global_position.y < _attack_line_y():
-			shot_opened = true
-			_set_gate(true)
-			break
-
 	# ۲) افتادن توپ از زمین (میز + دهانهٔ دروازه) → خطا
 	for b in balls:
 		if not _is_on_field(b.global_position):
@@ -1266,7 +1284,6 @@ func _judge_shot() -> void:
 		if b.global_position.y < _attack_line_y():
 			opened = true
 			break
-	opened = opened or shot_opened
 	var reached_goal := active_ball != null and active_ball.global_position.y \
 		<= GOAL_RECT.end.y + BALL_RADIUS
 
@@ -1339,11 +1356,7 @@ func _finish_shot(kind: ShotKind, foul_reason: String = "") -> void:
 		_delayed_turn(1.2)
 	else:
 		state = GameState.WAITING_FOR_INPUT
-		if kind == ShotKind.OPENER:
-			status_label.text = ""
-		else:
-			status_label.text = "پاس صحیح!"
-			_show_banner("پاس صحیح", Color(0.45, 0.95, 1.0))
+		status_label.text = ""
 		_update_hud()
 
 func _after_mistake(reason: String) -> void:
@@ -1362,8 +1375,10 @@ func _delayed_turn(delay_sec: float) -> void:
 func _update_hud() -> void:
 	var mark1 := "▶ " if current_player == 1 else "   "
 	var mark2 := "▶ " if current_player == 2 else "   "
-	p1_score_label.text = "%sبازیکن ۱: %s" % [mark1, _fa(scores[0])]
-	p2_score_label.text = "%sبازیکن ۲: %s" % [mark2, _fa(scores[1])]
+	p1_score_label.text = "%sبازیکن ۱" % mark1
+	p2_score_label.text = "%sبازیکن ۲" % mark2
+	p1_score_value.text = _fa(scores[0])
+	p2_score_value.text = _fa(scores[1])
 
 	var gate_txt := "آزاد" if gate_open else "مسدود"
 	turn_info_label.text = "نوبت %s | حرکت %s/%s | مسیر %s" % [
