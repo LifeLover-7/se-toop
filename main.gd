@@ -28,6 +28,8 @@ const LINEAR_DAMP := 2.0
 const WINNING_SCORE := 3
 const MOVES_PER_TURN := 3
 const MIX_RATE := 22050.0
+## اندازهٔ طراحی صحنه (مستقل از اندازهٔ پنجره)
+const DESIGN_SIZE := Vector2(1080, 1920)
 
 ## خط هجوم: اگر *توپ شوت‌شده* بالاتر از این خط بایستد، دروازه باز می‌شود.
 ## تعادل با جستجوی عددی روی ۲۱۶۰ شوت تنظیم شده (نه حدس):
@@ -107,19 +109,18 @@ func _ready() -> void:
 	call_deferred("_start_new_match")
 
 ## ریشهٔ صحنه حرکت نمی‌کند (لرزش روی دوربین است) تا فیزیک دست‌نخورده بماند.
+##
+## نکتهٔ مهم: اندازهٔ طراحی همیشه 1080×1920 است، نه اندازهٔ ویوپورت.
+## حالت stretch/aspect در project.godot روی keep است تا صحنهٔ پرتره در هر پنجره
+## کامل دیده شود و حاشیهٔ خالی بخورد؛ مختصات طراحی و دوربین در تمام اندازه‌ها ثابت‌اند.
 func _setup_camera() -> void:
-	var vp := Vector2(1080, 1920)
-	if get_viewport() != null:
-		vp = get_viewport().get_visible_rect().size
-	camera_center = vp * 0.5
+	camera_center = DESIGN_SIZE * 0.5
 	main_camera = Camera2D.new()
 	main_camera.name = "ShakeCamera"
-	main_camera.anchor_mode = Camera2D.ANCHOR_MODE_FIXED_TOP_LEFT
+	main_camera.anchor_mode = Camera2D.ANCHOR_MODE_DRAG_CENTER
 	main_camera.position = camera_center
-	main_camera.limit_left = 0
-	main_camera.limit_top = 0
-	main_camera.limit_right = int(vp.x)
-	main_camera.limit_bottom = int(vp.y)
+	# محدودیت لبه نگذار: وقتی کادر دوربین دقیقاً هم‌اندازهٔ میز است، محدودیت‌ها
+	# لرزش دوربین را کاملاً خنثی می‌کنند.
 	add_child(main_camera)
 	main_camera.make_current()
 
@@ -638,7 +639,7 @@ func _switch_turn() -> void:
 	_start_turn(2 if current_player == 1 else 1)
 
 # ---------------------------------------------------------------- ورودی
-func _unhandled_input(event: InputEvent) -> void:
+func _input(event: InputEvent) -> void:
 	# تا وقتی سیستم لمسی را به ماوس تبدیل نکرده، کلیک ماوس هم پذیرفته می‌شود
 	var pointing := event is InputEventScreenTouch or event is InputEventMouseButton \
 		or event is InputEventScreenDrag or event is InputEventMouseMotion
@@ -650,7 +651,9 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and not event.pressed and not is_dragging:
 		return
 
-	var pos: Vector2 = to_local(event.position)
+	# مختصات رویداد در فضای خود نود (با احتساب دوربین/لرزش/مقیاس پنجره)
+	var local_event := make_input_local(event)
+	var pos: Vector2 = local_event.position
 
 	if event is InputEventScreenTouch or event is InputEventMouseButton:
 		if event.pressed:
@@ -661,6 +664,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		_update_drag(pos)
 
 func _begin_drag(pos: Vector2) -> void:
+	if state != GameState.WAITING_FOR_INPUT:
+		return
 	var best: RigidBody2D = null
 	var best_d := BALL_RADIUS * 1.8
 	for b in balls:
