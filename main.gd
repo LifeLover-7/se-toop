@@ -1,5 +1,5 @@
 extends Node2D
-## سه‌توپ — نسخهٔ آرکید دو‌نفره (Phase 2.1)
+## سه‌توپ — نسخهٔ آرکید دو‌نفره (Phase 2.2)
 ##
 ## ارتقاها نسبت به Phase 2:
 ##  • رفع باگ مسدودکننده: شوتی که فقط بازکنندهٔ دروازه است دیگر «سوختی» اعلام نمی‌شود.
@@ -36,12 +36,13 @@ const DESIGN_SIZE := Vector2(1080, 1920)
 ## خط هجوم: عبور هر یک از توپ‌ها از این خط دروازه را باز می‌کند.
 ## تعادل با جستجوی عددی روی ۲۱۶۰ شوت تنظیم شده (نه حدس):
 ##   حداکثر مسافت یک شوت = 320×10 / 2.0 = ۱۶۰۰px
-##   از شروع توپ‌ها (y≈۱۳۹۰) تا این خط فقط ۲۱۶px لازم است، پس یک شوتِ پاسِ
-##   مورب به‌راحتی هم از شکاف می‌گذرد و هم دروازه را باز می‌کند («شوت طلایی»).
-##   از این خط تا دهانهٔ دروازه ۱۰۳۴px است که با همان یک شوت در دسترس است.
-##   با این تنظیم ~۲.۵٪ از کل فضای شوت‌های ممکن «طلایی» است؛ در عمل چون بازیکن
+##   خط روی نیمهٔ میز است (نسبت ۰٫۵۰)؛ از شروع توپ‌ها حدود ۴۰۱px فاصله دارد.
+##   با برد ۱۶۰۰px هنوز می‌توان با یک شوت پاس داد و دروازه را باز کرد.
+##   تا دهانهٔ دروازه نیز مسیر شوت طلایی در دسترس می‌ماند.
+##   با این تنظیم بخشی از فضای شوت‌های ممکن «طلایی» است؛ در عمل چون بازیکن
 ##   خط شکاف را می‌بیند، نرخ موفقیت واقعی به‌مراتب بالاتر است.
-const ATTACK_LINE_RATIO := 0.62
+const ATTACK_LINE_RATIO := 0.50
+const USER_SETTINGS_PATH := "user://se_toop_settings.cfg"
 
 # ---------------------------------------------------------------- وضعیت
 var state: GameState = GameState.WAITING_FOR_INPUT
@@ -60,6 +61,7 @@ var scores: Array[int] = [0, 0]
 var moves_per_turn := DEFAULT_MOVES_PER_TURN
 var configured_moves := DEFAULT_MOVES_PER_TURN
 var moves_left := DEFAULT_MOVES_PER_TURN
+var professional_mode := false
 
 # ---------------------------------------------------------------- نودها
 var main_camera: Camera2D
@@ -92,6 +94,12 @@ var hud_root: Control
 var top_bar: ColorRect
 var menu_overlay: ColorRect
 var menu_panel: ColorRect
+var tutorial_overlay: ColorRect
+var tutorial_panel: ColorRect
+var tutorial_title: Label
+var tutorial_text: Label
+var tutorial_continue_button: Button
+var professional_button: Button
 var menu_title: Label
 var menu_hint: Label
 var move_count_label: Label
@@ -170,6 +178,10 @@ func _setup_font() -> void:
 	moves_down_button.add_theme_font_override("font", sys_font)
 	moves_up_button.add_theme_font_override("font", sys_font)
 	start_game_button.add_theme_font_override("font", sys_font)
+	professional_button.add_theme_font_override("font", sys_font)
+	tutorial_title.add_theme_font_override("font", sys_font)
+	tutorial_text.add_theme_font_override("font", sys_font)
+	tutorial_continue_button.add_theme_font_override("font", sys_font)
 
 # ---------------------------------------------------------------- صدا
 func _setup_audio() -> void:
@@ -418,7 +430,7 @@ func _is_gate_open_for(p: Vector2) -> bool:
 		return false
 	var gap_left := gate_left.position.x + 150.0
 	var gap_right := gate_right.position.x
-	return p.x > gap_left and p.x < gap_right
+	return p.x - BALL_RADIUS > gap_left and p.x + BALL_RADIUS < gap_right
 
 # ---------------------------------------------------------------- ذرات
 func _build_particles() -> void:
@@ -511,7 +523,7 @@ func _build_hud() -> void:
 	menu_title = _label(menu_panel, Vector2.ZERO, 42, Color(1.0, 0.83, 0.48))
 	menu_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	menu_hint = _label(menu_panel, Vector2.ZERO, 20, Color(0.90, 0.88, 0.82))
-	menu_hint.text = "دو نفره • توپ را بکشید و رها کنید"
+	menu_hint.text = "رقابت آرکید دونفره"
 	menu_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	move_count_label = _label(menu_panel, Vector2.ZERO, 30, Color.WHITE)
 	move_count_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -519,8 +531,33 @@ func _build_hud() -> void:
 	moves_down_button.pressed.connect(_change_configured_moves.bind(-1))
 	moves_up_button = _new_button(menu_panel, "+")
 	moves_up_button.pressed.connect(_change_configured_moves.bind(1))
+	professional_button = _new_button(menu_panel, "حرفه‌ای: خاموش")
+	professional_button.toggle_mode = true
+	professional_button.toggled.connect(_on_professional_toggled)
 	start_game_button = _new_button(menu_panel, "شروع بازی")
 	start_game_button.pressed.connect(_on_start_game_pressed)
+
+	tutorial_overlay = ColorRect.new()
+	tutorial_overlay.color = Color(0.025, 0.02, 0.018, 0.92)
+	tutorial_overlay.mouse_filter = Control.MOUSE_FILTER_STOP
+	tutorial_overlay.visible = false
+	hud_root.add_child(tutorial_overlay)
+	tutorial_panel = ColorRect.new()
+	tutorial_panel.color = Color(0.12, 0.085, 0.055, 0.99)
+	tutorial_panel.mouse_filter = Control.MOUSE_FILTER_STOP
+	tutorial_overlay.add_child(tutorial_panel)
+	tutorial_title = _label(tutorial_panel, Vector2.ZERO, 38, Color(1.0, 0.83, 0.48))
+	tutorial_title.text = "آموزش کوتاه"
+	tutorial_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	tutorial_text = _label(tutorial_panel, Vector2.ZERO, 22, Color(0.95, 0.92, 0.86))
+	tutorial_text.text = "۱) توپ را در جهت مخالف شوت بکشید و رها کنید.\n\n" \
+		+ "۲) عبور از شکاف پاس صحیح است؛ برخورد با توپ دیگر خطاست و نوبت می‌سوزد.\n\n" \
+		+ "۳) عبور از خط میانی دروازه را باز می‌کند؛ برای گل باید تمام توپ از خط دروازه رد شود.\n\n" \
+		+ "۴) تعداد حرکت و حالت حرفه‌ای را از منوی اصلی تنظیم کنید."
+	tutorial_text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	tutorial_text.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	tutorial_continue_button = _new_button(tutorial_panel, "متوجه شدم؛ شروع بازی")
+	tutorial_continue_button.pressed.connect(_on_tutorial_continue_pressed)
 
 	_refresh_layout()
 
@@ -555,6 +592,7 @@ func _refresh_layout() -> void:
 	main_camera.position = camera_center
 	if hud_root != null:
 		_layout_hud(view_size, landscape)
+		_layout_tutorial(view_size, landscape)
 		if p1_score_label != null:
 			_update_hud()
 
@@ -634,11 +672,36 @@ func _layout_menu(view_size: Vector2, landscape: bool, scale_ui: float) -> void:
 	moves_up_button.size = Vector2(100, 78) * panel_scale
 	moves_down_button.add_theme_font_size_override("font_size", roundi(36 * panel_scale))
 	moves_up_button.add_theme_font_size_override("font_size", roundi(36 * panel_scale))
+	professional_button.position = Vector2(100, 360) * panel_scale
+	professional_button.size = Vector2(panel_ref.x - 200, 64) * panel_scale
+	professional_button.add_theme_font_size_override("font_size", roundi(20 * panel_scale))
+	professional_button.text = "حرفه‌ای: روشن" if professional_mode else "حرفه‌ای: خاموش"
 	start_game_button.position = Vector2(72, panel_ref.y - 142) * panel_scale
 	start_game_button.size = Vector2(panel_ref.x - 144, 82) * panel_scale
 	start_game_button.add_theme_font_size_override("font_size", roundi(25 * panel_scale))
 	menu_title.text = "سه‌توپ"
 	_update_move_count_label()
+
+func _layout_tutorial(view_size: Vector2, landscape: bool) -> void:
+	if tutorial_overlay == null:
+		return
+	tutorial_overlay.position = Vector2.ZERO
+	tutorial_overlay.size = view_size
+	var panel_ref := Vector2(980, 720) if landscape else Vector2(860, 820)
+	var panel_scale := minf(minf(view_size.x / panel_ref.x, view_size.y / panel_ref.y), 1.0)
+	panel_scale = maxf(panel_scale, 0.35)
+	var panel_size := panel_ref * panel_scale
+	tutorial_panel.position = (view_size - panel_size) * 0.5
+	tutorial_panel.size = panel_size
+	tutorial_title.position = Vector2(36, 34) * panel_scale
+	tutorial_title.size = Vector2(panel_ref.x - 72, 68) * panel_scale
+	tutorial_title.add_theme_font_size_override("font_size", roundi(38 * panel_scale))
+	tutorial_text.position = Vector2(54, 118) * panel_scale
+	tutorial_text.size = Vector2(panel_ref.x - 108, panel_ref.y - 230) * panel_scale
+	tutorial_text.add_theme_font_size_override("font_size", roundi(22 * panel_scale))
+	tutorial_continue_button.position = Vector2(72, panel_ref.y - 100) * panel_scale
+	tutorial_continue_button.size = Vector2(panel_ref.x - 144, 66) * panel_scale
+	tutorial_continue_button.add_theme_font_size_override("font_size", roundi(22 * panel_scale))
 
 func _update_move_count_label() -> void:
 	if move_count_label != null:
@@ -672,10 +735,40 @@ func _on_menu_pressed() -> void:
 
 func _on_start_game_pressed() -> void:
 	moves_per_turn = configured_moves
+	menu_overlay.visible = false
+	if not _tutorial_has_been_seen():
+		tutorial_overlay.visible = true
+		return
+	_start_game_now()
+
+func _tutorial_has_been_seen() -> bool:
+	var settings := ConfigFile.new()
+	if settings.load(USER_SETTINGS_PATH) != OK:
+		return false
+	return settings.get_value("progress", "tutorial_seen", false) == true
+
+func _on_tutorial_continue_pressed() -> void:
+	var settings := ConfigFile.new()
+	settings.load(USER_SETTINGS_PATH)
+	settings.set_value("progress", "tutorial_seen", true)
+	settings.save(USER_SETTINGS_PATH)
+	tutorial_overlay.visible = false
+	_start_game_now()
+
+func _start_game_now() -> void:
 	for ball in balls:
 		ball.visible = true
-	menu_overlay.visible = false
 	_start_new_match()
+
+func _on_professional_toggled(enabled: bool) -> void:
+	professional_mode = enabled
+	goal_meter_bg.visible = not professional_mode
+	goal_meter.visible = not professional_mode
+	if professional_mode:
+		aim_line.visible = false
+		aim_tip.visible = false
+		target_gate_line.visible = false
+		goal_meter.size.x = 0.0
 
 func _show_banner(text: String, color: Color = Color(1, 0.95, 0.3)) -> void:
 	banner_label.text = text
@@ -806,7 +899,7 @@ func _start_turn(player_idx: int) -> void:
 			Transform2D(randf_range(0.0, TAU), p)
 		)
 
-	status_label.text = "توپ را بکشید و از شکاف پاس رد کنید"
+	status_label.text = ""
 	_show_banner("نوبت بازیکن %s" % _fa(current_player),
 		Color(0.45, 0.80, 1.0) if current_player == 1 else Color(1.0, 0.52, 0.52))
 	_update_hud()
@@ -854,11 +947,18 @@ func _begin_drag(pos: Vector2) -> void:
 	is_dragging = best != null
 	if is_dragging:
 		drag_current_pos = pos
-		_update_target_gate_preview(best)
+		if not professional_mode:
+			_update_target_gate_preview(best)
 		_play_sfx(720.0, 760.0, 0.05, -22.0)
 
 func _update_drag(pos: Vector2) -> void:
 	drag_current_pos = pos
+	if professional_mode:
+		aim_line.visible = false
+		aim_tip.visible = false
+		target_gate_line.visible = false
+		goal_meter.size.x = 0.0
+		return
 	var pull := (drag_ball.global_position - pos).limit_length(MAX_DRAG_DIST)
 	var ratio := pull.length() / MAX_DRAG_DIST
 	_update_target_gate_preview(drag_ball)
@@ -894,6 +994,9 @@ func _end_drag(pos: Vector2) -> void:
 	drag_ball = null
 
 func _update_target_gate_preview(selected: RigidBody2D) -> void:
+	if professional_mode:
+		target_gate_line.visible = false
+		return
 	var others: Array[Vector2] = []
 	for b in balls:
 		if b != selected:
@@ -923,7 +1026,7 @@ func _shoot_ball(ball: RigidBody2D, impulse: Vector2) -> void:
 	ball.apply_central_impulse(impulse)
 	ball.apply_torque_impulse(randf_range(-1400.0, 1400.0))
 	_play_sfx(280.0, 150.0, 0.08)
-	status_label.text = "در حال حرکت..."
+	status_label.text = ""
 	_update_hud()
 
 # ---------------------------------------------------------------- هر فریم
@@ -940,7 +1043,7 @@ func _process(delta: float) -> void:
 		shake_strength = 0.0
 		main_camera.position = camera_center
 	# نوار سنجش نزدیکی به خط هجوم
-	if goal_meter != null and active_ball != null and is_dragging:
+	if goal_meter != null and active_ball != null and is_dragging and not professional_mode:
 		var target := _attack_line_y()
 		var span := maxf(absf(shot_origin.y - target), 1.0)
 		var ratio := clampf(1.0 - absf(active_ball.global_position.y - target) / span, 0.0, 1.0)
@@ -956,9 +1059,10 @@ func _physics_process(_delta: float) -> void:
 
 	var cur := active_ball.global_position
 
-	# ۱) گل: توپ شوت‌شده از دهانهٔ بازِ دروازه رد شود (یک‌طرفه — از پشت وارد نمی‌شود)
-	if cur.y <= GOAL_RECT.end.y + 6.0 \
-		and cur.x >= GOAL_RECT.position.x and cur.x <= GOAL_RECT.end.x \
+	# ۱) گل فقط وقتی ثبت می‌شود که تمام توپ از خط ورودی دروازه عبور کند.
+	if cur.y + BALL_RADIUS <= GOAL_RECT.end.y + 6.0 \
+		and cur.x >= GOAL_RECT.position.x + BALL_RADIUS \
+		and cur.x <= GOAL_RECT.end.x - BALL_RADIUS \
 		and _is_gate_open_for(cur):
 		_finish_shot(ShotKind.GOAL)
 		return
@@ -996,13 +1100,19 @@ func _physics_process(_delta: float) -> void:
 		_judge_shot()
 
 func _is_on_field(p: Vector2) -> bool:
-	return TABLE_RECT.has_point(p) or GOAL_RECT.has_point(p)
+	var goal_tunnel := Rect2(
+		GOAL_RECT.position - Vector2(BALL_RADIUS, BALL_RADIUS),
+		GOAL_RECT.size + Vector2(BALL_RADIUS * 2.0, BALL_RADIUS)
+	)
+	return TABLE_RECT.has_point(p) or goal_tunnel.has_point(p)
 
-func _on_ball_body_entered(_body: Node, source_ball: RigidBody2D) -> void:
+func _on_ball_body_entered(body: Node, source_ball: RigidBody2D) -> void:
 	if state != GameState.BALLS_MOVING or source_ball != active_ball:
 		return
 	_trigger_shake(7.0)
 	_play_sfx(160.0, 95.0, 0.13)
+	if body is RigidBody2D and balls.has(body):
+		_finish_shot(ShotKind.FOUL, "برخورد با توپ دیگر! نوبت سوخت.")
 
 # ---------------------------------------------------------------- داوری شوت
 ## ترتیب داوری اصلاح‌شده: ابتدا دستاوردها (گل / عبور از شکاف / باز کردن دروازه)
@@ -1016,7 +1126,7 @@ func _judge_shot() -> void:
 			break
 	opened = opened or shot_opened
 	var reached_goal := active_ball != null and active_ball.global_position.y \
-		< GOAL_RECT.end.y + BALL_RADIUS
+		<= GOAL_RECT.end.y + BALL_RADIUS
 
 	if opened:
 		_set_gate(true)
@@ -1094,7 +1204,7 @@ func _finish_shot(kind: ShotKind, foul_reason: String = "") -> void:
 				break
 		opened = opened or shot_opened
 		if opened:
-			status_label.text = "دروازه باز شد! حالا شوت بزنید!"
+			status_label.text = "دروازه باز شد!"
 			_show_banner("دروازه باز شد!", Color(0.3, 1.0, 0.65))
 		else:
 			status_label.text = "پاس صحیح! حرکت بعدی."

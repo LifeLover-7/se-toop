@@ -3,15 +3,15 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>سه توپ — پیش‌نمایش بازی (main.gd v2.1)</title>
+<title>سه توپ — پیش‌نمایش بازی (main.gd v2.2)</title>
 <style>
   html,body{margin:0;height:100%;background:#0b0806;overflow:hidden;
     font-family:"Vazirmatn","Segoe UI",Tahoma,system-ui,sans-serif;touch-action:none}
   canvas{display:block;width:100vw;height:100vh;touch-action:none;cursor:grab}
   canvas:active{cursor:grabbing}
-  #menu{position:fixed;inset:0;z-index:5;display:grid;place-items:center;
+  #menu,#tutorial{position:fixed;inset:0;z-index:5;display:grid;place-items:center;
     padding:18px;box-sizing:border-box;background:rgba(8,6,5,.78);backdrop-filter:blur(5px)}
-  #menu.hidden{display:none}
+  #menu.hidden,#tutorial.hidden{display:none}
   .card{width:min(560px,92vw);padding:30px 28px;border:1px solid rgba(255,217,143,.28);
     border-radius:22px;background:linear-gradient(145deg,#392819,#21170f);color:#fff;
     box-shadow:0 24px 80px rgba(0,0,0,.5);text-align:center}
@@ -19,6 +19,8 @@
   .card p{margin:8px 0 22px;color:#ddd2c2;font-size:clamp(.95rem,2.6vw,1.1rem)}
   .move-row{display:flex;align-items:center;justify-content:center;gap:18px;margin:20px auto 26px}
   .move-row strong{min-width:220px;font-size:clamp(1.1rem,3.5vw,1.5rem)}
+  .check-row{display:flex;align-items:center;justify-content:center;gap:10px;margin:0 auto 22px;color:#e9dfd1}
+  .check-row input{width:20px;height:20px;accent-color:#ffc866}
   button{font:inherit;color:#21170f;border:0;border-radius:12px;background:#e7c589;
     padding:12px 20px;min-height:48px;cursor:pointer;touch-action:manipulation}
   button:active{transform:scale(.97)}
@@ -32,20 +34,31 @@
 <div id="menu">
   <section class="card" aria-label="منوی بازی">
     <h1>سه‌توپ</h1>
-    <p>بازی دونفره؛ توپ را بکشید و از شکاف بین دو توپ دیگر عبور دهید.</p>
+    <p>رقابت آرکید دونفره</p>
     <div class="move-row">
       <button id="move-minus" aria-label="کم کردن حرکت">−</button>
       <strong id="move-count">۳ حرکت در هر نوبت</strong>
       <button id="move-plus" aria-label="زیاد کردن حرکت">+</button>
     </div>
+    <label class="check-row"><input id="professional-mode" type="checkbox">حالت حرفه‌ای؛ بدون خط‌های راهنما</label>
     <button id="start-game">شروع بازی</button>
-    <p class="note">در صفحهٔ افقی، میز خودکار می‌چرخد. ماوس و لمس پشتیبانی می‌شوند.</p>
+    <p class="note">در صفحهٔ افقی، میز خودکار می‌چرخد.</p>
+  </section>
+</div>
+<div id="tutorial" class="hidden">
+  <section class="card" aria-label="آموزش کوتاه">
+    <h1>آموزش کوتاه</h1>
+    <p>۱) توپ را در جهت مخالف شوت بکشید و رها کنید.<br><br>
+       ۲) عبور از شکاف بین دو توپ پاس صحیح است؛ برخورد با توپ دیگر خطاست و نوبت می‌سوزد.<br><br>
+       ۳) عبور از خط میانی میز دروازه را باز می‌کند. برای گل باید تمام توپ از خط دروازه رد شود.<br><br>
+       ۴) تعداد حرکت و حالت حرفه‌ای را از منوی اصلی تنظیم کنید.</p>
+    <button id="tutorial-continue">متوجه شدم؛ شروع بازی</button>
   </section>
 </div>
 <script>
 "use strict";
 /* ==================================================================
-   آینهٔ مرورگری «سه توپ» — هم‌خوان با main.gd نسخهٔ ۲.۱
+   آینهٔ مرورگری «سه توپ» — هم‌خوان با main.gd نسخهٔ ۲.۲
    همهٔ ثابت‌ها، هندسه و منطق داوری از main.gd گرفته شده‌اند.
    این فایل خودِ موتور Godot نیست؛ شبیه‌سازی قوانین برای تست تعادل است.
 ================================================================== */
@@ -68,7 +81,7 @@ let movesPerTurn = DEFAULT_MOVES_PER_TURN, configuredMoves = DEFAULT_MOVES_PER_T
 // پریست‌های تعادل (کلید ۱/۲/۳)
 const QP = new URLSearchParams(location.search);
 const PRESETS = {
-  "1": {name:"main.gd (v2.1)",      ratio:0.62, damp:2.0,  imp:10.0},
+  "1": {name:"main.gd (نیمه‌زمین)", ratio:0.50, damp:2.0,  imp:10.0},
   "2": {name:"سخت‌تر",               ratio:0.45, damp:2.0,  imp:10.0},
   "3": {name:"آسان‌تر",              ratio:0.75, damp:2.0,  imp:10.0},
 };
@@ -89,12 +102,13 @@ const ST = {MENU:0, WAIT:1, MOVING:2, TRANS:3, OVER:4};
 let state = ST.MENU;
 let balls = [];
 let activeBall = null, otherBalls = [], prevActive = {x:0,y:0}, shotOrigin = {x:0,y:0};
-let gapCrossed = false, gateOpen = false, shotOpened = false;
+let gapCrossed = false, gateOpen = false, shotOpened = false, shotCollided = false;
 let passLineA=null, passLineB=null;
 let gateAnim = {l:390, r:540, lt:390, rt:540};
 let dragging = false, dragBall = null, dragPos = {x:0,y:0};
 let player = 1, scores = [0,0], movesLeft = movesPerTurn;
 let shake = 0, parts = [], timers = [];
+let professionalMode = false;
 let statusText = "", turnText = "", banner = {text:"", color:"#fff", t:0, on:false};
 let lastT = 0, timeAcc = 0;
 
@@ -159,7 +173,7 @@ function setGate(open, instant){
 }
 function gapOpenAt(p){
   const gl = gateAnim.l + 150, gr = gateAnim.r;
-  return p.x > gl && p.x < gr;
+  return p.x-R > gl && p.x+R < gr;
 }
 function showBanner(text,color){ banner={text,color,t:0,on:true}; }
 function afterDelay(sec, fn){ timers.push({t:sec, fn}); }
@@ -169,14 +183,14 @@ function startTurn(p){
   state = ST.WAIT;
   movesLeft = movesPerTurn;
   activeBall=null; otherBalls=[]; dragBall=null; dragging=false; gapCrossed=false;
-  shotOpened=false; passLineA=null; passLineB=null;
+  shotOpened=false; shotCollided=false; passLineA=null; passLineB=null;
   setGate(false, true);
   const base=[{x:360,y:1520},{x:540,y:1390},{x:720,y:1520}];
   balls.forEach((b,i)=>{
     b.p = {x: base[i].x + rnd(-18,18), y: base[i].y + rnd(-14,14)};
     b.v = {x:0,y:0}; b.spin=0; b.a=rnd(0,6.28);
   });
-  statusText = "توپ را بکشید و از شکاف پاس رد کنید";
+  statusText = "";
   showBanner("نوبت بازیکن " + fa(p), p===1 ? "#73c8ff" : "#ff8585");
   updateHud();
 }
@@ -206,11 +220,11 @@ function shoot(ball, impulse){
   gapCrossed = false;
   otherBalls = balls.filter(b=>b!==ball);
   passLineA={...otherBalls[0].p}; passLineB={...otherBalls[1].p};
-  shotOpened=false;
+  shotOpened=false; shotCollided=false;
   ball.v.x += impulse.x; ball.v.y += impulse.y;
   ball.spin += rnd(-1400,1400)/900;
   sfx(280,150,0.08);
-  statusText = "در حال حرکت...";
+  statusText = "";
 }
 
 // ------------------------------ فیزیک
@@ -235,7 +249,7 @@ function stepPhysics(){
         const j2=1.3*vn/2;
         A.v.x-=j2*nx; A.v.y-=j2*ny; B.v.x+=j2*nx; B.v.y+=j2*ny;
         if(state===ST.MOVING && activeBall && (A===activeBall||B===activeBall)){
-          shake=Math.max(shake,7); sfx(160,95,0.13);
+          shotCollided=true; shake=Math.max(shake,7); sfx(160,95,0.13);
         }
       }
     }
@@ -274,14 +288,18 @@ function segInt(a,b,c,d){
   const ub=((b.x-a.x)*(a.y-c.y)-(b.y-a.y)*(a.x-c.x))/D;
   return ua>=0 && ua<=1 && ub>=0 && ub<=1;
 }
-function onField(p){ return inRect(p,TABLE) || inRect(p,GOAL); }
+function onField(p){
+  const goalTunnel={x:GOAL.x-R,y:GOAL.y-R,w:GOAL.w+2*R,h:GOAL.h+R};
+  return inRect(p,TABLE) || inRect(p,goalTunnel);
+}
 
 function checkShot(){
   if(state!==ST.MOVING || !activeBall) return;
   const act = activeBall.p;
 
-  // ۱) گل: از دهانهٔ باز رد شود
-  if(act.y <= GOAL.y+GOAL.h+6 && act.x>=GOAL.x && act.x<=GOAL.x+GOAL.w && gapOpenAt(act)){
+  if(shotCollided){ finish("FOUL","برخورد با توپ دیگر! نوبت سوخت."); return; }
+  // ۱) گل فقط وقتی ثبت می‌شود که تمام توپ از خط ورودی دروازه عبور کند.
+  if(act.y+R <= GOAL.y+GOAL.h+6 && act.x-R>=GOAL.x && act.x+R<=GOAL.x+GOAL.w && gapOpenAt(act)){
     burst(GOAL.x+GOAL.w/2, GOAL.y+40, 48, "#ffe066", 1.1, 220, 520);
     sfx(440,900,0.24); shake=Math.max(shake,14);
     finish("GOAL");
@@ -310,7 +328,7 @@ function judgeShot(){
   const act = activeBall.p;
   const crossed = gapCrossed || !!(passLineA && passLineB && segInt(shotOrigin,act,passLineA,passLineB));
   const opened = shotOpened || balls.some(b=>b.p.y < ATTACK_Y);
-  const reachedGoal = act.y < GOAL.y + GOAL.h + R;
+  const reachedGoal = act.y <= GOAL.y+GOAL.h+R;
 
   if(opened) setGate(true);
 
@@ -353,7 +371,7 @@ function finish(kind, reason){
   } else {
     state = ST.WAIT;
     if(kind==="OPENER" || gateOpen){
-      statusText = "دروازه باز شد! حالا شوت بزنید!";
+      statusText = "دروازه باز شد!";
       showBanner("دروازه باز شد!", "#4dffa6");
     } else {
       statusText = "پاس صحیح! حرکت بعدی.";
@@ -374,6 +392,8 @@ function aftermath(reason){
 const cv = document.getElementById("cv");
 const ctx = cv.getContext("2d");
 const menuEl = document.getElementById("menu");
+const tutorialEl = document.getElementById("tutorial");
+const proModeEl = document.getElementById("professional-mode");
 const moveCountEl = document.getElementById("move-count");
 const startGameEl = document.getElementById("start-game");
 let scale=1, ox=0, oy=0, dpr=1, landscape=false;
@@ -395,15 +415,29 @@ function hitMenu(p){
 function updateMoveCount(){ moveCountEl.textContent=fa(configuredMoves)+" حرکت در هر نوبت"; }
 function showMenu(){
   state=ST.MENU; dragging=false; dragBall=null; activeBall=null;
+  tutorialEl.classList.add("hidden");
   for(const b of balls){ b.v={x:0,y:0}; b.spin=0; }
+  setGate(false,true);
   menuEl.classList.remove("hidden");
   startGameEl.textContent=scores.some(n=>n>0)?"شروع دوباره":"شروع بازی";
+}
+function tutorialWasSeen(){
+  try{return localStorage.getItem("se-toop-tutorial-v1")==="seen";}catch(e){return false;}
+}
+function startConfiguredGame(){
+  menuEl.classList.add("hidden"); tutorialEl.classList.add("hidden"); startMatch();
 }
 function hideMenuAndStart(){
   movesPerTurn=configuredMoves;
   menuEl.classList.add("hidden");
-  startMatch();
+  if(!tutorialWasSeen()) tutorialEl.classList.remove("hidden");
+  else startConfiguredGame();
 }
+document.getElementById("tutorial-continue").addEventListener("click",()=>{
+  try{localStorage.setItem("se-toop-tutorial-v1","seen");}catch(e){}
+  startConfiguredGame();
+});
+proModeEl.addEventListener("change",()=>{ professionalMode=proModeEl.checked; });
 document.getElementById("move-minus").addEventListener("click",()=>{
   configuredMoves=Math.max(MIN_MOVES_PER_TURN,configuredMoves-1); updateMoveCount();
 });
@@ -519,9 +553,6 @@ function draw(){
   // خط هجوم
   ctx.strokeStyle="rgba(255,224,77,0.70)"; ctx.lineWidth=5;
   ctx.beginPath(); ctx.moveTo(TABLE.x,ATTACK_Y); ctx.lineTo(TABLE.x+TABLE.w,ATTACK_Y); ctx.stroke();
-  ctx.fillStyle="rgba(255,224,77,0.85)"; ctx.font="22px Vazirmatn,Tahoma,sans-serif";
-  ctx.textAlign="left"; ctx.direction="rtl";
-  ctx.fillText("خط باز شدن دروازه", TABLE.x+16, ATTACK_Y-10);
 
   // دروازه
   ctx.fillStyle="#123d26"; ctx.fillRect(GOAL.x-16,GOAL.y-16,GOAL.w+32,GOAL.h+18);
@@ -544,7 +575,7 @@ function draw(){
   ctx.shadowBlur=0;
 
   // شکاف پاس
-  if(dragging && dragBall){
+  if(dragging && dragBall && !professionalMode){
     const others = balls.filter(b=>b!==dragBall);
     ctx.strokeStyle="rgba(64,235,255,0.60)"; ctx.lineWidth=6;
     ctx.setLineDash([16,12]); ctx.lineDashOffset = -performance.now()/40;
@@ -554,7 +585,7 @@ function draw(){
   }
 
   // خط نشانه‌گیری + نوک
-  if(dragging && dragBall){
+  if(dragging && dragBall && !professionalMode){
     const pull={x:dragBall.p.x-dragPos.x, y:dragBall.p.y-dragPos.y};
     const len=Math.hypot(pull.x,pull.y);
     if(len>8){
@@ -643,9 +674,11 @@ function drawHud(){
   ctx.fillText(statusText, 1060, 76);
 
   // سنجهٔ دروازه
-  ctx.fillStyle="rgba(255,255,255,0.16)"; ctx.fillRect(356,98,240,10);
-  ctx.fillStyle = gateOpen?"#4dff80":"#ff5a5a";
-  ctx.fillRect(356,98,gateOpen?240:0,10);
+  if(!professionalMode){
+    ctx.fillStyle="rgba(255,255,255,0.16)"; ctx.fillRect(356,98,240,10);
+    ctx.fillStyle = gateOpen?"#4dff80":"#ff5a5a";
+    ctx.fillRect(356,98,gateOpen?240:0,10);
+  }
 
   // دکمه‌های تعویض نوبت و منو
   ctx.fillStyle="rgba(240,240,245,0.94)"; rr(752,18,204,82,12); ctx.fill();
@@ -671,22 +704,6 @@ function drawHud(){
     ctx.restore(); ctx.globalAlpha=1;
   }
 
-  // پانل تعادل (پایین)
-  ctx.direction="rtl"; ctx.textAlign="right";
-  ctx.font="21px Vazirmatn,Tahoma,sans-serif";
-  const need = Math.round(1390 - ATTACK_Y), reach = Math.round(VMAX/P.damp);
-  const ok = need <= reach;
-  ctx.fillStyle="rgba(0,0,0,0.55)"; rr(60,1690,700,150,14); ctx.fill();
-  const lines=[
-    "پریست "+presetKey+" · "+P.name+" · خط هجوم y="+fa(Math.round(ATTACK_Y)),
-    "بُرد شوت ≈ "+fa(reach)+"px  |  لازم از شروع: "+fa(need)+"px",
-    ok ? "✓ شوت طلایی (پاس+دروازه) ممکن است" : "✗ خط هجوم از دسترس خارج است",
-    "کلید ۱ / ۲ / ۳ = پریست‌های تعادل"
-  ];
-  lines.forEach((s,i)=>{
-    ctx.fillStyle = i===2 ? (ok?"#5cff9d":"#ff6b6b") : (i===3?"rgba(255,255,255,0.5)":"rgba(255,255,255,0.87)");
-    ctx.fillText(s, 740, 1720+i*30);
-  });
   ctx.direction="ltr";
   ctx.restore();
 }
@@ -701,8 +718,10 @@ function drawHudLandscape(){
   ctx.fillText(turnText,930,30);
   ctx.fillStyle="#ffe66b"; ctx.font="20px Vazirmatn,Tahoma,sans-serif";
   ctx.fillText(statusText,930,73);
-  ctx.fillStyle="rgba(255,255,255,0.16)"; ctx.fillRect(330,96,250,9);
-  ctx.fillStyle=gateOpen?"#4dff80":"#ff5a5a"; ctx.fillRect(330,96,gateOpen?250:0,9);
+  if(!professionalMode){
+    ctx.fillStyle="rgba(255,255,255,0.16)"; ctx.fillRect(330,96,250,9);
+    ctx.fillStyle=gateOpen?"#4dff80":"#ff5a5a"; ctx.fillRect(330,96,gateOpen?250:0,9);
+  }
 
   ctx.fillStyle="rgba(240,240,245,0.94)"; rr(1500,13,240,78,12); ctx.fill();
   ctx.fillStyle="#1a1a1a"; ctx.font="19px Vazirmatn,Tahoma,sans-serif"; ctx.textAlign="center";
