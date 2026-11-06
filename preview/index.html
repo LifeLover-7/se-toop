@@ -1,0 +1,677 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>سه توپ — پیش‌نمایش قوانین (Phase 2)</title>
+<style>
+  html,body{margin:0;height:100%;background:#0b0806;overflow:hidden;
+    font-family:"Vazirmatn","Segoe UI",Tahoma,system-ui,sans-serif;touch-action:none}
+  canvas{display:block;width:100vw;height:100vh;touch-action:none;cursor:grab}
+  canvas:active{cursor:grabbing}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<script>
+"use strict";
+/* ------------------------------------------------------------------
+   پیش‌نمایش قوانین بازی «سه توپ» در مرورگر.
+   این فایل شبیه‌ساز قوانین و حس بازی است، نه خروجی موتور Godot.
+   ثابت‌ها و قوانین عیناً از main.gd (Phase 2) برداشته شده‌اند.
+------------------------------------------------------------------- */
+
+// ---------- ثابت‌های main.gd ----------
+const TABLE = {x:60, y:220, w:960, h:1520};
+const ATTACK_LINE_Y = 720;
+const GOAL = {x:390, y:140, w:300, h:80};
+const BALL_R = 36;
+// تنظیمات قابل تغییر با کلیدهای ۱/۲/۳ برای تست تعادل بازی
+const QP = new URLSearchParams(location.search);
+const TUNE_PRESETS = {
+  "1": {name:"مطابق main.gd",      imp:5.8,  drag:300, damp:3.6},
+  "2": {name:"قدرت بیشتر",         imp:9.0,  drag:320, damp:3.6},
+  "3": {name:"میرایی کمتر",        imp:5.8,  drag:300, damp:1.2},
+  "4": {name:"اصلاح‌شده ★",        imp:11.0, drag:320, damp:3.6, fixOrder:true},
+};
+let tuneKey = QP.get("p") || "1";
+if(!TUNE_PRESETS[tuneKey]) tuneKey = "1";
+let TUNE = {...TUNE_PRESETS[tuneKey]};
+if(QP.get("imp")) TUNE.imp = +QP.get("imp");
+if(QP.get("drag")) TUNE.drag = +QP.get("drag");
+if(QP.get("damp")) TUNE.damp = +QP.get("damp");
+const MAX_DRAG = TUNE.drag;
+const IMPULSE_MULT = TUNE.imp;
+const DAMP = TUNE.damp;
+const STOP_SPEED = 14;
+const WINNING_SCORE = 3;
+const W = 1080, H = 1920;
+
+const cv = document.getElementById("cv");
+const ctx = cv.getContext("2d");
+let scale = 1, ox = 0, oy = 0, dpr = 1;
+
+// ---------- وضعیت ----------
+const ST = {WAIT:0, MOVING:1, TRANS:2, OVER:3};
+let state = ST.WAIT;
+let balls = [], activeBall = null, otherBalls = [], prevActive = {x:0,y:0};
+let dragging = false, passedBetween = false, hitOther = false;
+let gateOpen = false, goalThisShot = false;
+let player = 1, scores = [0,0], movesLeft = 3;
+let shake = 0, banner = {text:"", color:"#fff", t:0, life:0};
+let gateAnim = {l:390, r:540, lTarget:390, rTarget:540, speed:0.16};
+let parts = [];
+let statusText = "", turnText = "";
+let dragPos = {x:0,y:0};
+let timeAcc = 0, lastT = 0;
+let bannerActive = false;
+
+const lerp = (a,b,t)=>a+(b-a)*t;
+const clamp = (v,a,b)=>Math.max(a,Math.min(b,v));
+const rnd = (a,b)=>a+Math.random()*(b-a);
+const dist = (a,b)=>Math.hypot(a.x-b.x, a.y-b.y);
+
+// ---------- صدا (معادل AudioStreamGenerator) ----------
+let ac = null;
+function audioCtx(){
+  if(!ac){ try{ ac = new (window.AudioContext||window.webkitAudioContext)(); }catch(e){ ac=null; } }
+  if(ac && ac.state === "suspended") ac.resume();
+  return ac;
+}
+function sfx(f0, f1, dur, vol=0.28){
+  const a = audioCtx(); if(!a) return;
+  const t = a.currentTime;
+  const osc = a.createOscillator(), g = a.createGain();
+  osc.type = "sine";
+  osc.frequency.setValueAtTime(f0, t);
+  osc.frequency.exponentialRampToValueAtTime(Math.max(f1,1), t+dur);
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(vol, t+Math.min(0.012, dur*0.25));
+  g.gain.exponentialRampToValueAtTime(0.0001, t+dur);
+  osc.connect(g).connect(a.destination);
+  osc.start(t); osc.stop(t+dur+0.02);
+}
+
+// ---------- توپ‌ها ----------
+function makeBall(){
+  const pts = [];
+  for(let i=0;i<12;i++){
+    const ang = i*Math.PI*2/12, r = BALL_R*rnd(0.80,1.06);
+    pts.push({x:Math.cos(ang)*r, y:Math.sin(ang)*r});
+  }
+  return {p:{x:0,y:0}, v:{x:0,y:0}, a:rnd(0,6.28), spin:0, pts:pts};
+}
+function spawnBalls(){ balls = [makeBall(), makeBall(), makeBall()]; }
+
+// ---------- نوبت ----------
+function startTurn(p){
+  player = p;
+  state = ST.WAIT;
+  movesLeft = 3;
+  passedBetween = false; hitOther = false; goalThisShot = false;
+  activeBall = null; otherBalls = []; dragging = false;
+  setGate(false, true);
+  const base = [
+    {x:360+rnd(-20,20), y:1520+rnd(-15,15)},
+    {x:540+rnd(-20,20), y:1390+rnd(-15,15)},
+    {x:720+rnd(-20,20), y:1520+rnd(-15,15)}
+  ];
+  balls.forEach((b,i)=>{
+    b.p = {x:base[i].x, y:base[i].y};
+    b.v = {x:0,y:0}; b.spin = 0; b.a = rnd(0,6.28);
+  });
+  statusText = "توپ را بکشید و از خط آبی بین دو توپ رد کنید";
+  showBanner("نوبت بازیکن " + (p===1?"۱":"۲"), p===1?"#66c8ff":"#ff8080");
+  updateHud();
+}
+function startMatch(){
+  scores = [0,0];
+  startTurn(1);
+}
+function setGate(open, instant){
+  const changed = gateOpen !== open;
+  gateOpen = open;
+  gateAnim.lTarget = open ? 225 : 390;
+  gateAnim.rTarget = open ? 705 : 540;
+  if(instant){ gateAnim.l = gateAnim.lTarget; gateAnim.r = gateAnim.rTarget; }
+  if(open && changed){
+    burst(540, 215, 24, "#33ff99", 0.55, 120, 280);
+    sfx(420, 880, 0.22);
+    shake = Math.max(shake, 7);
+  }
+}
+function showBanner(text, color){ banner = {text, color, t:0, life:1.15}; }
+function updateHud(){
+  turnText = "نوبت: بازیکن " + (player===1?"۱":"۲") + "  |  حرکت: " + movesLeft + "/۳  |  دروازه: " + (gateOpen?"باز 🟢":"قفل 🔴");
+}
+
+// ---------- ذرات ----------
+function burst(x, y, n, color, life, vmin, vmax){
+  for(let i=0;i<n;i++){
+    const ang = rnd(-Math.PI*0.15, Math.PI*1.15);
+    const sp = rnd(vmin, vmax);
+    parts.push({x,y,vx:Math.cos(ang)*sp*0.35, vy:Math.sin(ang)*sp*0.55,
+      life, max:life, color, size:rnd(5,16)});
+  }
+}
+
+// ---------- شوت ----------
+function shoot(ball, impulse){
+  state = ST.MOVING;
+  passedBetween = false; hitOther = false; goalThisShot = false;
+  prevActive = {x:ball.p.x, y:ball.p.y};
+  otherBalls = balls.filter(b=>b!==ball);
+  ball.v.x += impulse.x; ball.v.y += impulse.y;
+  ball.spin += rnd(-1600,1600)/900;
+  sfx(260, 140, 0.09);
+  statusText = "در حال حرکت...";
+}
+
+// ---------- فیزیک ----------
+function stepPhysics(dt){
+  // حرکت + میرایی خطی (معادل linear_damp = 3.6 در Godot)
+  for(const b of balls){
+    b.p.x += b.v.x*dt; b.p.y += b.v.y*dt;
+    b.a += b.spin*dt;
+    const k = 1/(1+DAMP*dt);
+    b.v.x *= k; b.v.y *= k;
+    b.spin *= 1/(1+4.2*dt);
+  }
+  // برخورد توپ-توپ
+  for(let i=0;i<balls.length;i++) for(let j=i+1;j<balls.length;j++){
+    const a = balls[i], b = balls[j];
+    let dx = b.p.x-a.p.x, dy = b.p.y-a.p.y;
+    let d = Math.hypot(dx,dy) || 0.001;
+    const minD = BALL_R*2;
+    if(d < minD){
+      const nx = dx/d, ny = dy/d;
+      const push = (minD-d)/2;
+      a.p.x -= nx*push; a.p.y -= ny*push;
+      b.p.x += nx*push; b.p.y += ny*push;
+      const vn = (a.v.x-b.v.x)*nx + (a.v.y-b.v.y)*ny;
+      if(vn > 0){
+        const jimp = (1+0.32)*vn/2;
+        a.v.x -= jimp*nx; a.v.y -= jimp*ny;
+        b.v.x += jimp*nx; b.v.y += jimp*ny;
+        if(state===ST.MOVING && activeBall && (a===activeBall||b===activeBall)){
+          const other = a===activeBall ? b : a;
+          if(otherBalls.includes(other)){
+            hitOther = true;
+            shake = Math.max(shake, 9);
+            sfx(150, 90, 0.15);
+          }
+        }
+      }
+    }
+  }
+  // برخورد با دو لنگه دروازه (StaticBody2D در main.gd)
+  const doors = [
+    {x:gateAnim.l, y:204, w:150, h:24},
+    {x:gateAnim.r, y:204, w:150, h:24}
+  ];
+  for(const b of balls) for(const d of doors){
+    const cx = clamp(b.p.x, d.x, d.x+d.w), cy = clamp(b.p.y, d.y, d.y+d.h);
+    let dx = b.p.x-cx, dy = b.p.y-cy;
+    let dd = Math.hypot(dx,dy);
+    if(dd < BALL_R){
+      if(dd < 0.001){ dx = 0; dy = -1; dd = 1; }
+      const nx = dx/dd, ny = dy/dd;
+      b.p.x += nx*(BALL_R-dd); b.p.y += ny*(BALL_R-dd);
+      const vn = b.v.x*nx + b.v.y*ny;
+      if(vn < 0){ b.v.x -= (1+0.32)*vn*nx; b.v.y -= (1+0.32)*vn*ny; }
+    }
+  }
+}
+
+// ---------- منطق شوت (آینه _physics_process) ----------
+function segIntersect(p1,p2,p3,p4){
+  const d = (p2.x-p1.x)*(p4.y-p3.y) - (p2.y-p1.y)*(p4.x-p3.x);
+  if(Math.abs(d) < 1e-9) return null;
+  const ua = ((p4.x-p3.x)*(p1.y-p3.y) - (p4.y-p3.y)*(p1.x-p3.x))/d;
+  const ub = ((p2.x-p1.x)*(p1.y-p3.y) - (p2.y-p1.y)*(p1.x-p3.x))/d;
+  if(ua>=0&&ua<=1&&ub>=0&&ub<=1) return {x:p1.x+ua*(p2.x-p1.x), y:p1.y+ua*(p2.y-p1.y)};
+  return null;
+}
+function inRect(p, r){ return p.x>=r.x && p.x<=r.x+r.w && p.y>=r.y && p.y<=r.y+r.h; }
+
+function checkShot(){
+  if(state!==ST.MOVING || !activeBall) return;
+  const cur = activeBall.p;
+
+  // ۱) عبور از بین دو توپ دیگر
+  if(!passedBetween && otherBalls.length===2){
+    const hit = segIntersect(prevActive, cur, otherBalls[0].p, otherBalls[1].p);
+    if(hit){ passedBetween = true; sfx(520, 740, 0.12); }
+  }
+  prevActive = {x:cur.x, y:cur.y};
+
+  // ۲) گل (وقتی دروازه باز است) — قبل از بررسی بیرون‌افتادن
+  if(gateOpen && inRect(cur, GOAL)){
+    goalThisShot = true;
+    evaluateShot();
+    return;
+  }
+  // ۳) بیرون افتادن از میز
+  for(const b of balls){
+    if(!inRect(b.p, TABLE)){ handleFoul("خطا! توپ از روی میز بیرون افتاد."); return; }
+  }
+  // ۴) توقف کامل
+  let stopped = true;
+  for(const b of balls){
+    if(Math.hypot(b.v.x,b.v.y) > STOP_SPEED){ stopped = false; break; }
+  }
+  if(stopped) evaluateShot();
+}
+
+function evaluateShot(){
+  if(goalThisShot){
+    scores[player-1] += 1;
+    burst(540, 180, 45, "#ffe066", 1.1, 220, 520);
+    shake = Math.max(shake, 16);
+    sfx(440, 880, 0.25);
+    updateHud();
+    if(scores[player-1] >= WINNING_SCORE){
+      state = ST.OVER;
+      statusText = "بازیکن " + (player===1?"۱":"۲") + " برنده مسابقه شد! (روی دکمه کلیک کنید)";
+      showBanner("قهرمان: بازیکن " + (player===1?"۱":"۲") + " 🏆", "#33ff66");
+    } else {
+      state = ST.TRANS;
+      statusText = "گل برای بازیکن " + (player===1?"۱":"۲") + "!";
+      showBanner("گلللل! ⚽", "#33ff66");
+      afterDelay(1.8, ()=>{ if(state===ST.TRANS) startTurn(player===1?2:1); });
+    }
+    return;
+  }
+  // ★ اصلاح: باز شدن دروازه باید *قبل از* داوریِ پاس بررسی شود،
+  // وگرنه شوتی که توپ را پشت خط می‌برد همیشه «سوختی» اعلام می‌شود.
+  const wasOpen = gateOpen;
+  if(TUNE.fixOrder){
+    if(activeBall && activeBall.p.y < ATTACK_LINE_Y) setGate(true);
+  }
+
+  if(hitOther){ handleFoul("خطا! توپ به توپ دیگر برخورد کرد."); return; }
+
+  if(!passedBetween && !(TUNE.fixOrder && gateOpen)){
+    handleFoul("سوختی! توپ از بین دو توپ دیگر رد نشد."); return;
+  }
+
+  if(!TUNE.fixOrder){
+    for(const b of balls){ if(b.p.y < ATTACK_LINE_Y){ setGate(true); break; } }
+  }
+
+  movesLeft -= 1;
+  if(movesLeft <= 0){
+    handleFoul("۳ حرکت تمام شد! نوبت به حریف رسید.");
+  } else {
+    state = ST.WAIT;
+    if(!wasOpen && gateOpen){
+      statusText = "دروازه باز شد! حالا شوت بزنید!";
+      showBanner("دروازه باز شد! ⚡", "#33ff99");
+    } else {
+      statusText = "پاس صحیح! حرکت بعدی را بزنید.";
+      showBanner("پاس صحیح ✓", "#66f2ff");
+    }
+  }
+  updateHud();
+}
+function handleFoul(reason){
+  state = ST.TRANS;
+  statusText = reason;
+  shake = Math.max(shake, 8);
+  sfx(210, 110, 0.22);
+  showBanner("نوبت سوخت! ✖", "#ff5959");
+  updateHud();
+  afterDelay(1.5, ()=>{ if(state===ST.TRANS) startTurn(player===1?2:1); });
+}
+let timers = [];
+function afterDelay(sec, fn){ timers.push({t:sec, fn}); }
+
+// ---------- ورودی ----------
+function toDesign(e){
+  const r = cv.getBoundingClientRect();
+  return {x:(e.clientX-r.left-ox)/scale, y:(e.clientY-r.top-oy)/scale};
+}
+function hitReset(p){ return p.x>800 && p.x<1040 && p.y>25 && p.y<100; }
+
+function onDown(e){
+  e.preventDefault();
+  audioCtx();
+  const p = toDesign(e);
+  if(hitReset(p)){
+    if(state===ST.OVER) startMatch();
+    else startTurn(player===1?2:1);
+    return;
+  }
+  if(state!==ST.WAIT) return;
+  for(const b of balls){
+    if(dist(b.p, p) <= BALL_R*1.7){
+      activeBall = b; dragging = true; dragPos = p;
+      break;
+    }
+  }
+}
+function onMove(e){
+  if(!dragging || !activeBall) return;
+  e.preventDefault();
+  dragPos = toDesign(e);
+}
+function onUp(e){
+  if(!dragging || !activeBall) return;
+  dragging = false;
+  const p = toDesign(e);
+  const pull = {x:activeBall.p.x-p.x, y:activeBall.p.y-p.y};
+  const len = Math.hypot(pull.x, pull.y);
+  if(len > 28){
+    const k = Math.min(len, MAX_DRAG)/len;
+    shoot(activeBall, {x:pull.x*k*IMPULSE_MULT, y:pull.y*k*IMPULSE_MULT});
+  } else {
+    activeBall = null;
+  }
+}
+cv.addEventListener("pointerdown", onDown, {passive:false});
+cv.addEventListener("pointermove", onMove, {passive:false});
+window.addEventListener("pointerup", onUp);
+
+// ---------- رندر ----------
+function resize(){
+  dpr = Math.min(window.devicePixelRatio||1, 2);
+  const cw = window.innerWidth, ch = window.innerHeight;
+  cv.width = Math.floor(cw*dpr); cv.height = Math.floor(ch*dpr);
+  scale = Math.min(cw/W, ch/H);
+  ox = (cw - W*scale)/2; oy = (ch - H*scale)/2;
+}
+window.addEventListener("resize", resize);
+
+function rr(x,y,w,h,c){ ctx.beginPath(); ctx.moveTo(x+c,y); ctx.arcTo(x+w,y,x+w,y+h,c);
+  ctx.arcTo(x+w,y+h,x,y+h,c); ctx.arcTo(x,y+h,x,y,c); ctx.arcTo(x,y,x+w,y,c); ctx.closePath(); }
+
+function draw(){
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  ctx.fillStyle = "#0b0806";
+  ctx.fillRect(0,0,cv.width,cv.height);
+  // لرزش
+  const sx = shake>0.1 ? rnd(-shake,shake) : 0;
+  const sy = shake>0.1 ? rnd(-shake,shake) : 0;
+  ctx.setTransform(dpr*scale,0,0,dpr*scale, (ox+sx*scale)*dpr, (oy+sy*scale)*dpr);
+  ctx.clearRect(0,0,0,0);
+
+  // پس‌زمینه
+  ctx.fillStyle = "#1c1410"; ctx.fillRect(0,0,W,H);
+  ctx.fillStyle = "#1c1410";
+  ctx.fillRect(0,0,W,H);
+
+  // سایه میز
+  ctx.fillStyle = "rgba(0,0,0,0.45)";
+  ctx.fillRect(TABLE.x+14, TABLE.y+18, TABLE.w, TABLE.h);
+  // حاشیه چوبی
+  ctx.fillStyle = "#523018";
+  ctx.fillRect(TABLE.x-12, TABLE.y-12, TABLE.w+24, TABLE.h+24);
+  // سطح میز
+  ctx.fillStyle = "#7a4f2b";
+  ctx.fillRect(TABLE.x, TABLE.y, TABLE.w, TABLE.h);
+  // رگه‌های چوب
+  ctx.fillStyle = "rgba(107,66,36,0.45)";
+  for(let i=1;i<8;i++) ctx.fillRect(TABLE.x+i*120, TABLE.y, 4, TABLE.h);
+  // ناحیه هجومی
+  ctx.fillStyle = "rgba(255,217,64,0.05)";
+  ctx.fillRect(TABLE.x, TABLE.y, TABLE.w, ATTACK_LINE_Y-TABLE.y);
+  // خط یک‌سوم هجومی
+  ctx.strokeStyle = "rgba(255,224,64,0.65)"; ctx.lineWidth = 5;
+  ctx.beginPath(); ctx.moveTo(TABLE.x, ATTACK_LINE_Y); ctx.lineTo(TABLE.x+TABLE.w, ATTACK_LINE_Y); ctx.stroke();
+
+  // دروازه
+  ctx.fillStyle = "#143f28";
+  ctx.fillRect(GOAL.x-14, GOAL.y-14, GOAL.w+28, GOAL.h+14);
+  ctx.fillStyle = "#1f8049";
+  ctx.fillRect(GOAL.x, GOAL.y, GOAL.w, GOAL.h);
+  ctx.strokeStyle = "rgba(255,255,255,0.13)"; ctx.lineWidth = 1.5;
+  for(let x=GOAL.x; x<=GOAL.x+GOAL.w; x+=24){
+    ctx.beginPath(); ctx.moveTo(x, GOAL.y); ctx.lineTo(x, GOAL.y+GOAL.h); ctx.stroke();
+  }
+  for(let y=GOAL.y; y<=GOAL.y+GOAL.h; y+=20){
+    ctx.beginPath(); ctx.moveTo(GOAL.x, y); ctx.lineTo(GOAL.x+GOAL.w, y); ctx.stroke();
+  }
+
+  // LED‌ها
+  const led = gateOpen ? "#33ff66" : "#ff2626";
+  ctx.fillStyle = led;
+  ctx.fillRect(360,195,20,20); ctx.fillRect(700,195,20,20);
+  ctx.shadowColor = led; ctx.shadowBlur = 18;
+  ctx.fillRect(360,195,20,20); ctx.fillRect(700,195,20,20);
+  ctx.shadowBlur = 0;
+
+  // خط راهنمای شکاف پاس
+  if(dragging && activeBall){
+    const others = balls.filter(b=>b!==activeBall);
+    ctx.strokeStyle = "rgba(51,230,255,0.55)"; ctx.lineWidth = 6;
+    ctx.setLineDash([16,12]); ctx.lineDashOffset = -performance.now()/40;
+    ctx.beginPath();
+    ctx.moveTo(others[0].p.x, others[0].p.y); ctx.lineTo(others[1].p.x, others[1].p.y);
+    ctx.stroke(); ctx.setLineDash([]);
+  }
+
+  // خط نشانه‌گیری
+  if(dragging && activeBall){
+    const pull = {x:activeBall.p.x-dragPos.x, y:activeBall.p.y-dragPos.y};
+    const len = Math.hypot(pull.x,pull.y);
+    const k = Math.min(len, MAX_DRAG)/(len||1);
+    const pw = Math.min(len,MAX_DRAG)/MAX_DRAG;
+    const col = mix("#33ff66","#ff4033",pw);
+    ctx.strokeStyle = col; ctx.lineWidth = 10; ctx.lineCap = "round";
+    ctx.beginPath(); ctx.moveTo(activeBall.p.x, activeBall.p.y);
+    ctx.lineTo(activeBall.p.x+pull.x*k, activeBall.p.y+pull.y*k); ctx.stroke();
+    // قدرت
+    ctx.fillStyle = col;
+    rr(TABLE.x+20, TABLE.y+TABLE.h-56, (TABLE.w-40)*pw, 22, 11); ctx.fill();
+    ctx.strokeStyle = "rgba(255,255,255,0.35)"; ctx.lineWidth = 3;
+    rr(TABLE.x+20, TABLE.y+TABLE.h-56, TABLE.w-40, 22, 11); ctx.stroke();
+  }
+
+  // لنگه‌های دروازه
+  drawDoor(gateAnim.l); drawDoor(gateAnim.r);
+
+  // توپ‌ها
+  for(const b of balls) drawBall(b);
+
+  // ذرات
+  for(const p of parts){
+    const a = p.life/p.max;
+    ctx.globalAlpha = a;
+    ctx.fillStyle = p.color;
+    ctx.beginPath(); ctx.arc(p.x, p.y, p.size*a, 0, 6.2832); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+
+  drawHud();
+}
+
+function drawDoor(x){
+  ctx.fillStyle = "rgba(0,0,0,0.35)"; ctx.fillRect(x+5, 204+6, 150, 24);
+  ctx.fillStyle = "#d92e38"; ctx.fillRect(x, 204, 150, 24);
+  ctx.fillStyle = "rgba(255,191,51,0.9)"; ctx.fillRect(x+10, 213, 130, 6);
+}
+function drawBall(b){
+  ctx.save();
+  ctx.translate(b.p.x, b.p.y);
+  // سایه
+  ctx.save(); ctx.translate(7,9);
+  ctx.beginPath();
+  b.pts.forEach((p,i)=> i? ctx.lineTo(p.x,p.y): ctx.moveTo(p.x,p.y));
+  ctx.closePath(); ctx.fillStyle = "rgba(0,0,0,0.32)"; ctx.fill(); ctx.restore();
+  // بدنه کاغذ مچاله
+  ctx.rotate(b.a);
+  ctx.beginPath();
+  b.pts.forEach((p,i)=> i? ctx.lineTo(p.x,p.y): ctx.moveTo(p.x,p.y));
+  ctx.closePath();
+  ctx.fillStyle = "#f5f2e6"; ctx.fill();
+  ctx.strokeStyle = "rgba(120,105,80,0.45)"; ctx.lineWidth = 2; ctx.stroke();
+  // چروک/خط دفتر
+  ctx.strokeStyle = "rgba(89,140,217,0.45)"; ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  ctx.moveTo(b.pts[1].x*0.65, b.pts[1].y*0.65);
+  ctx.lineTo(0,0); ctx.lineTo(b.pts[5].x*0.7, b.pts[5].y*0.7);
+  ctx.lineTo(b.pts[9].x*0.6, b.pts[9].y*0.6); ctx.stroke();
+  // اگر فعال است، حلقه
+  if(b===activeBall && dragging){
+    ctx.setLineDash([8,8]);
+    ctx.beginPath(); ctx.arc(0,0,BALL_R+12,0,6.2832);
+    ctx.strokeStyle = "rgba(51,255,102,0.55)"; ctx.lineWidth = 3; ctx.stroke();
+    ctx.setLineDash([]);
+  }
+  ctx.restore();
+}
+
+function drawHud(){
+  ctx.direction = "rtl"; ctx.textBaseline = "middle";
+  // نوار بالا
+  ctx.fillStyle = "rgba(18,13,10,0.92)"; ctx.fillRect(0,0,W,125);
+
+  ctx.font = "34px Vazirmatn, Tahoma, sans-serif";
+  ctx.textAlign = "right";
+  ctx.fillStyle = "#66bfff";
+  ctx.fillText((player===1?"▶ ":"   ") + "بازیکن ۱: " + fa(scores[0]) + " گل", 320, 42);
+  ctx.fillStyle = "#ff7373";
+  ctx.fillText((player===2?"▶ ":"   ") + "بازیکن ۲: " + fa(scores[1]) + " گل", 320, 88);
+
+  ctx.font = "30px Vazirmatn, Tahoma, sans-serif";
+  ctx.fillStyle = "#ffffff";
+  ctx.fillText(turnText, 1060, 40);
+  ctx.fillStyle = "#ffe65a";
+  ctx.font = "28px Vazirmatn, Tahoma, sans-serif";
+  ctx.fillText(statusText, 1060, 88);
+
+  // دکمه
+  ctx.fillStyle = "rgba(240,240,245,0.94)";
+  rr(800, 25, 240, 75, 12); ctx.fill();
+  ctx.fillStyle = "#1a1a1a"; ctx.font = "26px Vazirmatn, Tahoma, sans-serif";
+  ctx.textAlign = "center";
+  ctx.fillText("تعویض نوبت / ریست", 920, 64);
+
+  // بنر وسط
+  if(banner.life > 0){
+    const t = banner.t;
+    let sc = 1, al = 1;
+    if(t < 0.18){ sc = lerp(0.7, 1.05, t/0.18); al = 1; }
+    else if(t < 0.93){ sc = 1.05; al = 1; }
+    else { sc = 1.05; al = 1 - (t-0.93)/0.22; }
+    ctx.save();
+    ctx.translate(540, 940); ctx.scale(sc, sc);
+    ctx.globalAlpha = clamp(al,0,1);
+    ctx.font = "bold 60px Vazirmatn, Tahoma, sans-serif";
+    ctx.textAlign = "center";
+    ctx.lineWidth = 10; ctx.strokeStyle = "rgba(0,0,0,0.55)";
+    ctx.strokeText(banner.text, 0, 0);
+    ctx.fillStyle = banner.color;
+    ctx.fillText(banner.text, 0, 0);
+    ctx.restore();
+    ctx.globalAlpha = 1;
+  }
+
+  // پانویس
+  ctx.font = "24px Vazirmatn, Tahoma, sans-serif";
+  ctx.textAlign = "center";
+  ctx.fillStyle = "rgba(255,255,255,0.28)";
+  ctx.fillText("پیش‌نمایش قوانین در مرورگر — نسخه اصلی یک پروژه Godot 4.3 است", 540, 1840);
+
+  // پنل تست تعادل (فقط در پیش‌نمایش)
+  ctx.textAlign = "right";
+  ctx.direction = "rtl";
+  ctx.font = "22px Vazirmatn, Tahoma, sans-serif";
+  const need = 1390 - ATTACK_LINE_Y;
+  const travel = Math.round(maxTravel());
+  const reachable = travel >= need;
+  const lines = [
+    "پریست " + tuneKey + ": " + TUNE.name + (TUNE.fixOrder ? "  (داوری اصلاح‌شده)" : ""),
+    "قدرت " + TUNE.imp + "  ·  میرایی " + TUNE.damp,
+    "بُرد یک شوت: " + fa(travel) + "px  |  لازم برای دروازه: " + fa(need) + "px",
+    reachable ? "✓ دروازه با یک شوت باز می‌شود" : "✗ دروازه با یک شوت باز نمی‌شود",
+    "کلید ۱ / ۲ / ۳ = عوض کردن پریست"
+  ];
+  let py = 1290;
+  ctx.fillStyle = "rgba(0,0,0,0.55)";
+  rr(60, py - 40, 700, 150, 14); ctx.fill();
+  for(let i=0;i<lines.length;i++){
+    ctx.fillStyle = i === 3 ? (reachable ? "#5cff9d" : "#ff6b6b")
+                            : (i === 4 ? "rgba(255,255,255,0.55)" : "rgba(255,255,255,0.88)");
+    ctx.fillText(lines[i], 740, py + i*28);
+  }
+  ctx.direction = "ltr";
+}
+
+const FA = ["۰","۱","۲","۳","۴","۵","۶","۷","۸","۹"];
+function fa(n){ return String(n).split("").map(c=> FA[+c] ?? c).join(""); }
+function mix(c1, c2, t){
+  const p = c=>[parseInt(c.slice(1,3),16),parseInt(c.slice(3,5),16),parseInt(c.slice(5,7),16)];
+  const a = p(c1), b = p(c2);
+  return "rgb(" + Math.round(lerp(a[0],b[0],t)) + "," + Math.round(lerp(a[1],b[1],t)) + "," + Math.round(lerp(a[2],b[2],t)) + ")";
+}
+
+// ---------- حلقه ----------
+function frame(now){
+  if(!lastT) lastT = now;
+  let dt = Math.min((now-lastT)/1000, 0.05);
+  lastT = now;
+
+  // تایمرها
+  for(let i=timers.length-1;i>=0;i--){
+    timers[i].t -= dt;
+    if(timers[i].t <= 0){ const fn = timers[i].fn; timers.splice(i,1); fn(); }
+  }
+  // انیمیشن دروازه
+  const sp = 1 - Math.pow(0.001, dt);
+  gateAnim.l = lerp(gateAnim.l, gateAnim.lTarget, sp);
+  gateAnim.r = lerp(gateAnim.r, gateAnim.rTarget, sp);
+
+  // فیزیک با گام ثابت
+  if(state===ST.MOVING || state===ST.TRANS){
+    timeAcc += dt;
+    const fixed = 1/120;
+    let guard = 0;
+    while(timeAcc >= fixed && guard++ < 40){
+      stepPhysics(fixed);
+      checkShot();
+      timeAcc -= fixed;
+      if(state!==ST.MOVING) break;
+    }
+  }
+  // میرایی لرزش
+  shake = shake > 0.1 ? lerp(shake, 0, 1-Math.pow(0.0001, dt)) : 0;
+
+  // ذرات
+  for(let i=parts.length-1;i>=0;i--){
+    const p = parts[i];
+    p.x += p.vx*dt; p.y += p.vy*dt;
+    p.vy += 260*dt; p.vx *= 1-2.2*dt; p.vy *= 1-1.1*dt;
+    p.life -= dt;
+    if(p.life <= 0) parts.splice(i,1);
+  }
+  // بنر
+  if(banner.life > 0){
+    banner.t += dt;
+    if(banner.t > 1.15) banner.life = 0;
+  }
+
+  draw();
+  requestAnimationFrame(frame);
+}
+
+// ---------- راه‌اندازی ----------
+resize();
+spawnBalls();
+startMatch();
+requestAnimationFrame(frame);
+
+// ---------- کلیدهای تست تعادل ----------
+function maxTravel(){ return (MAX_DRAG*IMPULSE_MULT)/DAMP; }
+function applyTune(){
+  location.search = "?p=" + tuneKey;
+}
+window.addEventListener("keydown", (e)=>{
+  if(["1","2","3","4"].includes(e.key)){
+    tuneKey = e.key; applyTune();
+  }
+});
+
+</script>
+</body>
+</html>
