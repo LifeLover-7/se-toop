@@ -13,7 +13,7 @@ extends Node2D
 ##  • HUD واکنش‌گرا + جلوگیری از خطای چیدمان راست‌به‌چپ در Label.
 ##  • رویه/بافت میز از نو نوشته شد؛ همهٔ آیتم‌های تمیزکاری‌شده.
 
-enum GameState { WAITING_FOR_INPUT, BALLS_MOVING, TRANSITION, MATCH_OVER }
+enum GameState { MENU, WAITING_FOR_INPUT, BALLS_MOVING, TRANSITION, MATCH_OVER }
 enum ShotKind { NONE, PASS, OPENER, GOAL, FOUL }
 
 # ---------------------------------------------------------------- پیکربندی
@@ -26,12 +26,14 @@ const IMPULSE_MULTIPLIER := 10.0
 const STOP_SPEED_THRESHOLD := 12.0
 const LINEAR_DAMP := 2.0
 const WINNING_SCORE := 3
-const MOVES_PER_TURN := 3
+const DEFAULT_MOVES_PER_TURN := 3
+const MIN_MOVES_PER_TURN := 1
+const MAX_MOVES_PER_TURN := 9
 const MIX_RATE := 22050.0
 ## اندازهٔ طراحی صحنه (مستقل از اندازهٔ پنجره)
 const DESIGN_SIZE := Vector2(1080, 1920)
 
-## خط هجوم: اگر *توپ شوت‌شده* بالاتر از این خط بایستد، دروازه باز می‌شود.
+## خط هجوم: عبور هر یک از توپ‌ها از این خط دروازه را باز می‌کند.
 ## تعادل با جستجوی عددی روی ۲۱۶۰ شوت تنظیم شده (نه حدس):
 ##   حداکثر مسافت یک شوت = 320×10 / 2.0 = ۱۶۰۰px
 ##   از شروع توپ‌ها (y≈۱۳۹۰) تا این خط فقط ۲۱۶px لازم است، پس یک شوتِ پاسِ
@@ -55,7 +57,9 @@ var drag_ball: RigidBody2D = null
 
 var current_player := 1
 var scores: Array[int] = [0, 0]
-var moves_left := MOVES_PER_TURN
+var moves_per_turn := DEFAULT_MOVES_PER_TURN
+var configured_moves := DEFAULT_MOVES_PER_TURN
+var moves_left := DEFAULT_MOVES_PER_TURN
 
 # ---------------------------------------------------------------- نودها
 var main_camera: Camera2D
@@ -74,12 +78,27 @@ var gate_right: AnimatableBody2D
 var gate_led_left: ColorRect
 var gate_led_right: ColorRect
 var gate_open := false
+var shot_opened := false
 var gap_crossed := false
+var pass_line_a := Vector2.ZERO
+var pass_line_b := Vector2.ZERO
+var pass_line_valid := false
 var gate_tween: Tween
 
 var goal_particles: CPUParticles2D
 var gate_particles: CPUParticles2D
 
+var hud_root: Control
+var top_bar: ColorRect
+var menu_overlay: ColorRect
+var menu_panel: ColorRect
+var menu_title: Label
+var menu_hint: Label
+var move_count_label: Label
+var moves_down_button: Button
+var moves_up_button: Button
+var start_game_button: Button
+var menu_button: Button
 var p1_score_label: Label
 var p2_score_label: Label
 var turn_info_label: Label
@@ -106,23 +125,24 @@ func _ready() -> void:
 	_build_hud()
 	_spawn_balls()
 	call_deferred("_setup_font")
-	call_deferred("_start_new_match")
+	call_deferred("_show_main_menu")
 
 ## ریشهٔ صحنه حرکت نمی‌کند (لرزش روی دوربین است) تا فیزیک دست‌نخورده بماند.
 ##
 ## نکتهٔ مهم: اندازهٔ طراحی همیشه 1080×1920 است، نه اندازهٔ ویوپورت.
-## حالت stretch/aspect در project.godot روی keep است تا صحنهٔ پرتره در هر پنجره
-## کامل دیده شود و حاشیهٔ خالی بخورد؛ مختصات طراحی و دوربین در تمام اندازه‌ها ثابت‌اند.
+## stretch/aspect=expand است؛ در صفحهٔ افقی دوربین صحنه را ۹۰ درجه می‌چرخاند و در
+## هر دو جهت با بزرگ‌نمایی مناسب میز کامل داخل پنجره جا می‌گیرد.
 func _setup_camera() -> void:
 	camera_center = DESIGN_SIZE * 0.5
 	main_camera = Camera2D.new()
 	main_camera.name = "ShakeCamera"
 	main_camera.anchor_mode = Camera2D.ANCHOR_MODE_DRAG_CENTER
 	main_camera.position = camera_center
-	# محدودیت لبه نگذار: وقتی کادر دوربین دقیقاً هم‌اندازهٔ میز است، محدودیت‌ها
-	# لرزش دوربین را کاملاً خنثی می‌کنند.
+	# اندازه و چرخش دوربین با نسبت واقعی پنجره تنظیم می‌شود.
 	add_child(main_camera)
 	main_camera.make_current()
+	get_viewport().size_changed.connect(_refresh_layout)
+	_refresh_layout()
 
 # ---------------------------------------------------------------- فونت فارسی
 ## فونت پیش‌فرض Godot هیچ گلیف فارسی ندارد؛ بدون این، تمام HUD مربع خالی می‌شود.
@@ -141,11 +161,15 @@ func _setup_font() -> void:
 		_show_toast("Persian font not found - install Vazirmatn/Noto Naskh Arabic")
 		return
 	var labels: Array[Label] = [p1_score_label, p2_score_label, turn_info_label,
-		status_label, banner_label, toast_label]
+		status_label, banner_label, toast_label, menu_title, menu_hint, move_count_label]
 	for lbl in labels:
 		if lbl != null:
 			lbl.add_theme_font_override("font", sys_font)
 	reset_btn.add_theme_font_override("font", sys_font)
+	menu_button.add_theme_font_override("font", sys_font)
+	moves_down_button.add_theme_font_override("font", sys_font)
+	moves_up_button.add_theme_font_override("font", sys_font)
+	start_game_button.add_theme_font_override("font", sys_font)
 
 # ---------------------------------------------------------------- صدا
 func _setup_audio() -> void:
@@ -436,77 +460,228 @@ func _build_hud() -> void:
 	hud.name = "Hud"
 	add_child(hud)
 
-	var top_bar := ColorRect.new()
+	hud_root = Control.new()
+	hud_root.name = "HudRoot"
+	hud_root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	hud_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hud.add_child(hud_root)
+
+	top_bar = ColorRect.new()
 	top_bar.color = Color(0.06, 0.05, 0.04, 0.94)
-	top_bar.size = Vector2(1080, 118)
 	top_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	hud.add_child(top_bar)
+	hud_root.add_child(top_bar)
 
-	p1_score_label = _label(hud, Vector2(36, 12), 32, Color(0.45, 0.78, 1.0))
-	p2_score_label = _label(hud, Vector2(36, 62), 32, Color(1.0, 0.48, 0.48))
-	turn_info_label = _label(hud, Vector2(356, 12), 28, Color(0.95, 0.95, 0.95))
-	status_label = _label(hud, Vector2(356, 60), 25, Color(1.0, 0.90, 0.40))
+	p1_score_label = _label(hud_root, Vector2.ZERO, 26, Color(0.45, 0.78, 1.0))
+	p2_score_label = _label(hud_root, Vector2.ZERO, 26, Color(1.0, 0.48, 0.48))
+	turn_info_label = _label(hud_root, Vector2.ZERO, 24, Color(0.95, 0.95, 0.95))
+	status_label = _label(hud_root, Vector2.ZERO, 21, Color(1.0, 0.90, 0.40))
 
-	# نشانگر باز شدن دروازه
 	goal_meter_bg = ColorRect.new()
-	goal_meter_bg.position = Vector2(356, 98)
-	goal_meter_bg.size = Vector2(240, 10)
 	goal_meter_bg.color = Color(1, 1, 1, 0.16)
 	goal_meter_bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	hud.add_child(goal_meter_bg)
-
+	hud_root.add_child(goal_meter_bg)
 	goal_meter = ColorRect.new()
-	goal_meter.position = Vector2(356, 98)
-	goal_meter.size = Vector2(0, 10)
 	goal_meter.color = Color(1.0, 0.35, 0.35)
 	goal_meter.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	hud.add_child(goal_meter)
+	hud_root.add_child(goal_meter)
 
-	reset_btn = Button.new()
-	reset_btn.text = "تعویض نوبت / ریست"
-	reset_btn.position = Vector2(798, 16)
-	reset_btn.size = Vector2(240, 84)
-	reset_btn.add_theme_font_size_override("font_size", 24)
-	reset_btn.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	reset_btn.focus_mode = Control.FOCUS_NONE
+	reset_btn = _new_button(hud_root, "تعویض نوبت")
 	reset_btn.pressed.connect(_on_manual_reset_pressed)
-	hud.add_child(reset_btn)
+	menu_button = _new_button(hud_root, "منو")
+	menu_button.pressed.connect(_on_menu_pressed)
 
-	banner_label = Label.new()
-	banner_label.position = Vector2(120, 900)
-	banner_label.size = Vector2(840, 130)
+	banner_label = _label(hud_root, Vector2.ZERO, 48, Color.WHITE)
 	banner_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	banner_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	banner_label.add_theme_font_size_override("font_size", 54)
 	banner_label.modulate = Color(1, 1, 1, 0)
-	banner_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	hud.add_child(banner_label)
-
-	toast_label = Label.new()
-	toast_label.position = Vector2(60, 1820)
-	toast_label.size = Vector2(960, 60)
+	toast_label = _label(hud_root, Vector2.ZERO, 20, Color.WHITE)
 	toast_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	toast_label.add_theme_font_size_override("font_size", 22)
 	toast_label.modulate = Color(1, 1, 1, 0)
-	toast_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	hud.add_child(toast_label)
 
-func _label(parent: Node, pos: Vector2, size_px: int, color: Color) -> Label:
-	var l := Label.new()
-	l.position = pos
-	l.add_theme_font_size_override("font_size", size_px)
-	l.modulate = color
-	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	# متن راست‌به‌چپ: هر Label فضای خودش را دارد تا خطای چیدمان پیش نیاید.
-	l.size = Vector2(300, size_px + 14)
-	parent.add_child(l)
-	return l
+	# منوی شروع و تنظیم تعداد حرکت؛ با چیدمان صریح در هر دو جهت صفحه.
+	menu_overlay = ColorRect.new()
+	menu_overlay.color = Color(0.025, 0.02, 0.018, 0.88)
+	menu_overlay.mouse_filter = Control.MOUSE_FILTER_STOP
+	hud_root.add_child(menu_overlay)
+	menu_panel = ColorRect.new()
+	menu_panel.color = Color(0.12, 0.085, 0.055, 0.98)
+	menu_panel.mouse_filter = Control.MOUSE_FILTER_STOP
+	menu_overlay.add_child(menu_panel)
+
+	menu_title = _label(menu_panel, Vector2.ZERO, 42, Color(1.0, 0.83, 0.48))
+	menu_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	menu_hint = _label(menu_panel, Vector2.ZERO, 20, Color(0.90, 0.88, 0.82))
+	menu_hint.text = "دو نفره • توپ را بکشید و رها کنید"
+	menu_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	move_count_label = _label(menu_panel, Vector2.ZERO, 30, Color.WHITE)
+	move_count_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	moves_down_button = _new_button(menu_panel, "−")
+	moves_down_button.pressed.connect(_change_configured_moves.bind(-1))
+	moves_up_button = _new_button(menu_panel, "+")
+	moves_up_button.pressed.connect(_change_configured_moves.bind(1))
+	start_game_button = _new_button(menu_panel, "شروع بازی")
+	start_game_button.pressed.connect(_on_start_game_pressed)
+
+	_refresh_layout()
+
+func _new_button(parent: Control, text: String) -> Button:
+	var button := Button.new()
+	button.text = text
+	button.focus_mode = Control.FOCUS_NONE
+	button.mouse_filter = Control.MOUSE_FILTER_STOP
+	parent.add_child(button)
+	return button
+
+func _layout_label(node: Control, rect: Rect2, font_size: int) -> void:
+	node.position = rect.position
+	node.size = rect.size
+	node.add_theme_font_size_override("font_size", font_size)
+
+func _refresh_layout() -> void:
+	if get_viewport() == null:
+		return
+	var view_size := get_viewport().get_visible_rect().size
+	if view_size.x <= 0.0 or view_size.y <= 0.0:
+		return
+	var landscape := view_size.x > view_size.y
+	var design_fit := minf(view_size.x / DESIGN_SIZE.x, view_size.y / DESIGN_SIZE.y)
+	if landscape:
+		design_fit = minf(view_size.x / DESIGN_SIZE.y, view_size.y / DESIGN_SIZE.x)
+		main_camera.rotation = -PI * 0.5
+	else:
+		main_camera.rotation = 0.0
+	main_camera.zoom = Vector2.ONE * maxf(design_fit, 0.05)
+	camera_center = DESIGN_SIZE * 0.5
+	main_camera.position = camera_center
+	if hud_root != null:
+		_layout_hud(view_size, landscape)
+		if p1_score_label != null:
+			_update_hud()
+
+func _layout_hud(view_size: Vector2, landscape: bool) -> void:
+	var reference := Vector2(1920, 1080) if landscape else DESIGN_SIZE
+	var scale_ui := minf(view_size.x / reference.x, view_size.y / reference.y)
+	var canvas_size := reference * scale_ui
+	var origin := (view_size - canvas_size) * 0.5
+	hud_root.position = Vector2.ZERO
+	hud_root.size = view_size
+	top_bar.position = origin
+	top_bar.size = Vector2(canvas_size.x, 112.0 * scale_ui if landscape else 122.0 * scale_ui)
+
+	if landscape:
+		_layout_label(p1_score_label, Rect2(origin + Vector2(24, 8) * scale_ui,
+			Vector2(270, 40) * scale_ui), roundi(25 * scale_ui))
+		_layout_label(p2_score_label, Rect2(origin + Vector2(24, 54) * scale_ui,
+			Vector2(270, 40) * scale_ui), roundi(25 * scale_ui))
+		_layout_label(turn_info_label, Rect2(origin + Vector2(330, 8) * scale_ui,
+			Vector2(600, 42) * scale_ui), roundi(24 * scale_ui))
+		_layout_label(status_label, Rect2(origin + Vector2(330, 52) * scale_ui,
+			Vector2(780, 38) * scale_ui), roundi(20 * scale_ui))
+		goal_meter_bg.position = origin + Vector2(330, 96) * scale_ui
+		goal_meter_bg.size = Vector2(250, 9) * scale_ui
+		reset_btn.position = origin + Vector2(1500, 13) * scale_ui
+		reset_btn.size = Vector2(240, 78) * scale_ui
+		menu_button.position = origin + Vector2(1760, 13) * scale_ui
+		menu_button.size = Vector2(135, 78) * scale_ui
+		_layout_label(banner_label, Rect2(origin + Vector2(500, 430) * scale_ui,
+			Vector2(920, 120) * scale_ui), roundi(48 * scale_ui))
+		_layout_label(toast_label, Rect2(origin + Vector2(240, 1010) * scale_ui,
+			Vector2(1440, 50) * scale_ui), roundi(20 * scale_ui))
+	else:
+		_layout_label(p1_score_label, Rect2(origin + Vector2(22, 10) * scale_ui,
+			Vector2(285, 43) * scale_ui), roundi(26 * scale_ui))
+		_layout_label(p2_score_label, Rect2(origin + Vector2(22, 62) * scale_ui,
+			Vector2(285, 43) * scale_ui), roundi(26 * scale_ui))
+		_layout_label(turn_info_label, Rect2(origin + Vector2(315, 10) * scale_ui,
+			Vector2(430, 42) * scale_ui), roundi(23 * scale_ui))
+		_layout_label(status_label, Rect2(origin + Vector2(315, 58) * scale_ui,
+			Vector2(430, 36) * scale_ui), roundi(20 * scale_ui))
+		goal_meter_bg.position = origin + Vector2(315, 101) * scale_ui
+		goal_meter_bg.size = Vector2(240, 9) * scale_ui
+		reset_btn.position = origin + Vector2(752, 18) * scale_ui
+		reset_btn.size = Vector2(204, 82) * scale_ui
+		menu_button.position = origin + Vector2(968, 18) * scale_ui
+		menu_button.size = Vector2(94, 82) * scale_ui
+		_layout_label(banner_label, Rect2(origin + Vector2(120, 890) * scale_ui,
+			Vector2(840, 120) * scale_ui), roundi(48 * scale_ui))
+		_layout_label(toast_label, Rect2(origin + Vector2(60, 1820) * scale_ui,
+			Vector2(960, 60) * scale_ui), roundi(20 * scale_ui))
+	goal_meter.position = goal_meter_bg.position
+	goal_meter.size.y = goal_meter_bg.size.y
+	reset_btn.add_theme_font_size_override("font_size", roundi(17 * scale_ui))
+	menu_button.add_theme_font_size_override("font_size", roundi(20 * scale_ui))
+	_layout_menu(view_size, landscape, scale_ui)
+
+func _layout_menu(view_size: Vector2, landscape: bool, scale_ui: float) -> void:
+	menu_overlay.position = Vector2.ZERO
+	menu_overlay.size = view_size
+	var panel_ref := Vector2(980, 600) if landscape else Vector2(860, 620)
+	var panel_scale := minf(scale_ui, minf((view_size.x - 32) / panel_ref.x,
+		(view_size.y - 32) / panel_ref.y))
+	panel_scale = maxf(panel_scale, 0.35)
+	var panel_size := panel_ref * panel_scale
+	menu_panel.position = (view_size - panel_size) * 0.5
+	menu_panel.size = panel_size
+	_layout_label(menu_title, Rect2(Vector2(36, 34) * panel_scale,
+		Vector2(panel_ref.x - 72, 70) * panel_scale), roundi(42 * panel_scale))
+	_layout_label(menu_hint, Rect2(Vector2(36, 112) * panel_scale,
+		Vector2(panel_ref.x - 72, 44) * panel_scale), roundi(20 * panel_scale))
+	_layout_label(move_count_label, Rect2(Vector2((panel_ref.x - 420) * 0.5, 260) * panel_scale,
+		Vector2(420, 68) * panel_scale), roundi(30 * panel_scale))
+	moves_down_button.position = Vector2(150, 252) * panel_scale
+	moves_down_button.size = Vector2(100, 78) * panel_scale
+	moves_up_button.position = Vector2(panel_ref.x - 250, 252) * panel_scale
+	moves_up_button.size = Vector2(100, 78) * panel_scale
+	moves_down_button.add_theme_font_size_override("font_size", roundi(36 * panel_scale))
+	moves_up_button.add_theme_font_size_override("font_size", roundi(36 * panel_scale))
+	start_game_button.position = Vector2(72, panel_ref.y - 142) * panel_scale
+	start_game_button.size = Vector2(panel_ref.x - 144, 82) * panel_scale
+	start_game_button.add_theme_font_size_override("font_size", roundi(25 * panel_scale))
+	menu_title.text = "سه‌توپ"
+	_update_move_count_label()
+
+func _update_move_count_label() -> void:
+	if move_count_label != null:
+		move_count_label.text = "تعداد حرکت مجاز: %s" % _fa(configured_moves)
+
+func _change_configured_moves(amount: int) -> void:
+	configured_moves = clampi(configured_moves + amount, MIN_MOVES_PER_TURN, MAX_MOVES_PER_TURN)
+	_update_move_count_label()
+
+func _show_main_menu() -> void:
+	state = GameState.MENU
+	is_dragging = false
+	active_ball = null
+	drag_ball = null
+	for ball in balls:
+		ball.linear_velocity = Vector2.ZERO
+		ball.angular_velocity = 0.0
+		ball.sleeping = true
+		ball.visible = false
+	menu_overlay.visible = true
+	aim_line.visible = false
+	aim_tip.visible = false
+	target_gate_line.visible = false
+	_set_gate(false, true)
+	start_game_button.text = "شروع بازی" if scores == [0, 0] else "شروع دوباره"
+	_layout_hud(get_viewport().get_visible_rect().size,
+		get_viewport().get_visible_rect().size.x > get_viewport().get_visible_rect().size.y)
+
+func _on_menu_pressed() -> void:
+	_show_main_menu()
+
+func _on_start_game_pressed() -> void:
+	moves_per_turn = configured_moves
+	for ball in balls:
+		ball.visible = true
+	menu_overlay.visible = false
+	_start_new_match()
 
 func _show_banner(text: String, color: Color = Color(1, 0.95, 0.3)) -> void:
 	banner_label.text = text
 	banner_label.modulate = color
 	banner_label.scale = Vector2(0.72, 0.72)
-	banner_label.pivot_offset = Vector2(420, 65)
+	banner_label.pivot_offset = banner_label.size * 0.5
 	var tw := create_tween()
 	tw.tween_property(banner_label, "scale", Vector2(1.04, 1.04), 0.18) \
 		.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
@@ -593,6 +768,7 @@ func _spawn_balls() -> void:
 func _start_new_match() -> void:
 	scores = [0, 0]
 	current_player = 1
+	reset_btn.text = "تعویض نوبت"
 	_start_turn(1)
 	_show_toast("")
 
@@ -605,7 +781,7 @@ func _on_manual_reset_pressed() -> void:
 func _start_turn(player_idx: int) -> void:
 	current_player = player_idx
 	state = GameState.WAITING_FOR_INPUT
-	moves_left = MOVES_PER_TURN
+	moves_left = moves_per_turn
 	active_ball = null
 	drag_ball = null
 	is_dragging = false
@@ -619,7 +795,7 @@ func _start_turn(player_idx: int) -> void:
 	]
 	for i in range(3):
 		var b := balls[i]
-		var p := base[i] + Vector2(randf_range(-18, 18), randf_range(-14, 14))
+		var p: Vector2 = base[i] + Vector2(randf_range(-18, 18), randf_range(-14, 14))
 		b.sleeping = false
 		b.linear_velocity = Vector2.ZERO
 		b.angular_velocity = 0.0
@@ -732,11 +908,16 @@ func _shoot_ball(ball: RigidBody2D, impulse: Vector2) -> void:
 	prev_active_pos = ball.global_position
 	shot_origin = ball.global_position
 	gap_crossed = false
+	shot_opened = false
 
 	other_balls.clear()
 	for b in balls:
 		if b != ball:
 			other_balls.append(b)
+	pass_line_valid = other_balls.size() == 2
+	if pass_line_valid:
+		pass_line_a = other_balls[0].global_position
+		pass_line_b = other_balls[1].global_position
 
 	ball.sleeping = false
 	ball.apply_central_impulse(impulse)
@@ -763,7 +944,7 @@ func _process(delta: float) -> void:
 		var target := _attack_line_y()
 		var span := maxf(absf(shot_origin.y - target), 1.0)
 		var ratio := clampf(1.0 - absf(active_ball.global_position.y - target) / span, 0.0, 1.0)
-		goal_meter.size.x = 240.0 * ratio
+		goal_meter.size.x = goal_meter_bg.size.x * ratio
 
 func _trigger_shake(amount: float) -> void:
 	shake_strength = maxf(shake_strength, amount)
@@ -782,19 +963,26 @@ func _physics_process(_delta: float) -> void:
 		_finish_shot(ShotKind.GOAL)
 		return
 
+	# عبور از خط بین دو توپ در هر فریم ثبت می‌شود؛ این کار پیش از داوری خروج
+	# از میز انجام می‌شود تا عبور واقعی از شکاف به‌اشتباه «سوختن نوبت» نشود.
+	if not gap_crossed and pass_line_valid:
+		if Geometry2D.segment_intersects_segment(
+				prev_active_pos, cur, pass_line_a, pass_line_b) != null:
+			gap_crossed = true
+			_play_sfx(540.0, 780.0, 0.09)
+
+	# عبور هر یک از توپ‌ها از خط هجوم دروازه را باز می‌کند.
+	for b in balls:
+		if b.global_position.y < _attack_line_y():
+			shot_opened = true
+			_set_gate(true)
+			break
+
 	# ۲) افتادن توپ از زمین (میز + دهانهٔ دروازه) → خطا
 	for b in balls:
 		if not _is_on_field(b.global_position):
 			_finish_shot(ShotKind.FOUL, "خطا! توپ از روی میز بیرون افتاد.")
 			return
-
-	# ثبت عبور از شکاف پاس در طول حرکت (نه فقط در لحظهٔ داوری)
-	if not gap_crossed and other_balls.size() >= 2:
-		var seg_a := other_balls[0].global_position
-		var seg_b := other_balls[1].global_position
-		if Geometry2D.segment_intersects_segment(prev_active_pos, cur, seg_a, seg_b) != null:
-			gap_crossed = true
-			_play_sfx(540.0, 780.0, 0.09)
 
 	prev_active_pos = cur
 
@@ -821,7 +1009,12 @@ func _on_ball_body_entered(_body: Node, source_ball: RigidBody2D) -> void:
 ## ثبت می‌شوند و تنها اگر هیچ‌کدام رخ نداده باشد خطا اعلام می‌شود.
 func _judge_shot() -> void:
 	var crossed := gap_crossed or _passed_between()
-	var opened := active_ball != null and active_ball.global_position.y < _attack_line_y()
+	var opened := false
+	for b in balls:
+		if b.global_position.y < _attack_line_y():
+			opened = true
+			break
+	opened = opened or shot_opened
 	var reached_goal := active_ball != null and active_ball.global_position.y \
 		< GOAL_RECT.end.y + BALL_RADIUS
 
@@ -842,19 +1035,16 @@ func _judge_shot() -> void:
 
 ## آیا مسیر توپ شوت‌شده از پاره‌خط بین دو توپ دیگر گذشته است؟
 func _passed_between() -> bool:
-	if active_ball == null or other_balls.size() < 2:
+	if active_ball == null or not pass_line_valid:
 		return false
-	var a := other_balls[0]
-	var b := other_balls[1]
-	var seg_a := a.global_position
-	var seg_b := b.global_position
-	# از مبدأ شوت تا موقعیت فعلی (شامل مسیر حرکت‌کرده پس از برخورد هم می‌شود)
-	var now_pos := active_ball.global_position
-	var hit = Geometry2D.segment_intersects_segment(shot_origin, now_pos, seg_a, seg_b)
-	if hit != null:
+	if gap_crossed:
 		return true
-	# احتیاط: قطعهٔ آخرِ مسیر هم بررسی می‌شود (برخوردهای پرسرعت)
-	return Geometry2D.segment_intersects_segment(prev_active_pos, now_pos, seg_a, seg_b) != null
+	var now_pos := active_ball.global_position
+	if Geometry2D.segment_intersects_segment(
+			shot_origin, now_pos, pass_line_a, pass_line_b) != null:
+		return true
+	return Geometry2D.segment_intersects_segment(
+			prev_active_pos, now_pos, pass_line_a, pass_line_b) != null
 
 func _finish_shot(kind: ShotKind, foul_reason: String = "") -> void:
 	match kind:
@@ -885,14 +1075,24 @@ func _finish_shot(kind: ShotKind, foul_reason: String = "") -> void:
 		_:
 			pass
 
-	# PASS / OPENER
+	# PASS / OPENER: هر شوت موفق یک حرکت از سهمیه کم می‌کند.
 	if kind == ShotKind.PASS:
 		_play_sfx(540.0, 780.0, 0.10)
 	moves_left -= 1
 	if moves_left <= 0:
-		_after_mistake("حرکت‌ها تمام شد! نوبت حریف.")
+		state = GameState.TRANSITION
+		status_label.text = "حرکت‌های مجاز تمام شد؛ نوبت حریف."
+		_show_banner("پایان نوبت", Color(1.0, 0.82, 0.38))
+		_update_hud()
+		_delayed_turn(1.2)
 	else:
 		state = GameState.WAITING_FOR_INPUT
+		var opened := false
+		for b in balls:
+			if b.global_position.y < _attack_line_y():
+				opened = true
+				break
+		opened = opened or shot_opened
 		if opened:
 			status_label.text = "دروازه باز شد! حالا شوت بزنید!"
 			_show_banner("دروازه باز شد!", Color(0.3, 1.0, 0.65))
@@ -922,11 +1122,11 @@ func _update_hud() -> void:
 
 	var gate_txt := "باز" if gate_open else "قفل"
 	turn_info_label.text = "نوبت %s | حرکت %s/%s | دروازه %s" % [
-		_fa(current_player), _fa(moves_left), _fa(MOVES_PER_TURN), gate_txt
+		_fa(current_player), _fa(moves_left), _fa(moves_per_turn), gate_txt
 	]
 	if goal_meter != null:
 		if gate_open:
-			goal_meter.size.x = 240.0
+			goal_meter.size.x = goal_meter_bg.size.x
 			goal_meter.color = Color(0.3, 1.0, 0.5)
 		else:
 			goal_meter.size.x = 0.0
