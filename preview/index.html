@@ -3,44 +3,62 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>سه توپ — پیش‌نمایش بازی (main.gd v2.2)</title>
+<title>سه توپ — پیش‌نمایش بازی (main.gd v2.3)</title>
 <style>
   html,body{margin:0;height:100%;background:#0b0806;overflow:hidden;
     font-family:"Vazirmatn","Segoe UI",Tahoma,system-ui,sans-serif;touch-action:none}
   canvas{display:block;width:100vw;height:100vh;touch-action:none;cursor:grab}
   canvas:active{cursor:grabbing}
   #menu,#tutorial{position:fixed;inset:0;z-index:5;display:grid;place-items:center;
-    padding:18px;box-sizing:border-box;background:rgba(8,6,5,.78);backdrop-filter:blur(5px)}
+    padding:18px;box-sizing:border-box;background:radial-gradient(ellipse at 50% 38%,rgba(161,98,34,.2),transparent 50%),rgba(5,7,10,.84);backdrop-filter:blur(9px)}
   #menu.hidden,#tutorial.hidden{display:none}
-  .card{width:min(560px,92vw);padding:30px 28px;border:1px solid rgba(255,217,143,.28);
-    border-radius:22px;background:linear-gradient(145deg,#392819,#21170f);color:#fff;
-    box-shadow:0 24px 80px rgba(0,0,0,.5);text-align:center}
-  .card h1{margin:0 0 8px;color:#ffe0a1;font-size:clamp(2rem,6vw,3.1rem)}
-  .card p{margin:8px 0 22px;color:#ddd2c2;font-size:clamp(.95rem,2.6vw,1.1rem)}
-  .move-row{display:flex;align-items:center;justify-content:center;gap:18px;margin:20px auto 26px}
-  .move-row strong{min-width:220px;font-size:clamp(1.1rem,3.5vw,1.5rem)}
-  .check-row{display:flex;align-items:center;justify-content:center;gap:10px;margin:0 auto 22px;color:#e9dfd1}
-  .check-row input{width:20px;height:20px;accent-color:#ffc866}
-  button{font:inherit;color:#21170f;border:0;border-radius:12px;background:#e7c589;
-    padding:12px 20px;min-height:48px;cursor:pointer;touch-action:manipulation}
+  .card{position:relative;isolation:isolate;width:min(580px,92vw);max-height:calc(100vh - 36px);overflow:auto;padding:34px 30px 30px;
+    border:1px solid rgba(255,217,143,.34);border-radius:30px;
+    background:radial-gradient(ellipse at 50% -10%,rgba(255,199,98,.13),transparent 52%),linear-gradient(145deg,#252c35,#15191e 62%,#231b13);
+    color:#fff;box-shadow:0 28px 100px rgba(0,0,0,.68),0 0 55px rgba(224,159,69,.08);text-align:center}
+  .card:before{content:"";position:absolute;z-index:-1;inset:10px;border:1px solid rgba(255,255,255,.045);border-radius:22px;pointer-events:none}
+  .eyebrow{margin:0 0 10px!important;color:#d6ad70!important;font-size:.78rem!important;letter-spacing:.12em;font-weight:700}
+  .brand-mark{height:58px;display:flex;align-items:center;justify-content:center;gap:15px;margin:4px auto 8px}
+  .paper-ball{position:relative;width:38px;height:38px;border-radius:48% 52% 54% 46%;background:linear-gradient(145deg,#fffdf4,#ddd8c8);
+    box-shadow:0 8px 15px rgba(0,0,0,.38),inset -4px -5px 8px rgba(68,64,56,.18);transform:rotate(var(--r))}
+  .paper-ball:after{content:"";position:absolute;left:8px;right:7px;top:17px;height:2px;background:rgba(76,111,166,.48);transform:rotate(-25deg);box-shadow:0 5px rgba(76,111,166,.28)}
+  .brand-link{width:24px;height:2px;background:linear-gradient(90deg,transparent,#d6ad70,transparent)}
+  .card h1{margin:0 0 5px;color:#ffe0a1;font-size:clamp(2.6rem,8vw,4rem);line-height:1.08;text-shadow:0 3px 24px rgba(255,190,93,.18)}
+  .card p{margin:8px 0 20px;color:#d4d1ca;font-size:clamp(.95rem,2.6vw,1.12rem)}
+  .move-row{display:flex;align-items:center;justify-content:center;gap:16px;margin:18px auto 20px;padding:12px 10px;
+    border:1px solid rgba(255,255,255,.075);border-radius:18px;background:rgba(6,9,12,.4)}
+  .move-row strong{min-width:220px;font-size:clamp(1.1rem,3.5vw,1.45rem);color:#f3ead9}
+  .check-row{display:flex;align-items:center;justify-content:center;gap:11px;margin:0 auto 22px;color:#e9dfd1;font-size:1rem}
+  .check-row input{width:20px;height:20px;accent-color:#e8b65e}
+  button{font:inherit;color:#21170f;border:1px solid rgba(255,228,177,.25);border-radius:14px;
+    background:linear-gradient(180deg,#f0d39c,#c89a57);padding:12px 20px;min-height:48px;cursor:pointer;touch-action:manipulation;
+    box-shadow:0 8px 20px rgba(0,0,0,.24);transition:transform .15s,filter .15s,box-shadow .15s}
+  button:hover{filter:brightness(1.08);box-shadow:0 10px 24px rgba(0,0,0,.32)}
   button:active{transform:scale(.97)}
-  #move-minus,#move-plus{width:54px;padding:8px;font-size:1.5rem}
-  #start-game{width:min(100%,420px);font-weight:700;background:#ffc866}
-  .note{font-size:.85rem!important;color:#bfb4a4!important;margin:18px 0 0!important}
+  button:focus-visible{outline:3px solid #ffe4a7;outline-offset:3px}
+  #move-minus,#move-plus{width:54px;padding:8px;font-size:1.5rem;border-radius:13px;background:linear-gradient(180deg,#333c47,#20262e);color:#f6e8cf}
+  #start-game,#tutorial-continue{width:min(100%,430px);font-weight:800;color:#23170a;background:linear-gradient(180deg,#ffd789,#d79f4d);font-size:1.08rem}
+  .note{font-size:.84rem!important;color:#9d9b98!important;margin:19px 0 0!important}
+  .tutorial-diagram{margin:8px auto 20px;padding:12px 10px 6px;border:1px solid rgba(64,220,255,.2);border-radius:18px;background:rgba(10,22,28,.56)}
+  .tutorial-diagram svg{display:block;width:100%;height:auto;max-height:105px}
+  .tutorial-diagram small{display:block;color:#85e8f4;font-size:.88rem;margin:1px 0 4px}
+  @media(max-width:430px){.card{padding:27px 18px 22px}.move-row{gap:8px}.move-row strong{min-width:190px}.paper-ball{width:32px;height:32px}}
 </style>
 </head>
 <body>
 <canvas id="cv"></canvas>
 <div id="menu">
   <section class="card" aria-label="منوی بازی">
+    <p class="eyebrow">کاغذی • آرکید • دوئل دونفره</p>
+    <div class="brand-mark" aria-hidden="true"><span class="paper-ball" style="--r:-12deg"></span><i class="brand-link"></i><span class="paper-ball" style="--r:8deg"></span><i class="brand-link"></i><span class="paper-ball" style="--r:18deg"></span></div>
     <h1>سه‌توپ</h1>
-    <p>رقابت آرکید دونفره</p>
+    <p>سه توپ، یک میز، یک قهرمان</p>
     <div class="move-row">
       <button id="move-minus" aria-label="کم کردن حرکت">−</button>
       <strong id="move-count">۳ حرکت در هر نوبت</strong>
       <button id="move-plus" aria-label="زیاد کردن حرکت">+</button>
     </div>
-    <label class="check-row"><input id="professional-mode" type="checkbox">حالت حرفه‌ای؛ بدون خط‌های راهنما</label>
+    <label class="check-row"><input id="professional-mode" type="checkbox">حالت حرفه‌ای؛ بدون خطوط راهنما</label>
     <button id="start-game">شروع بازی</button>
     <p class="note">در صفحهٔ افقی، میز خودکار می‌چرخد.</p>
   </section>
@@ -52,13 +70,24 @@
        ۲) عبور از شکاف بین دو توپ پاس صحیح است؛ برخورد با توپ دیگر خطاست و نوبت می‌سوزد.<br><br>
        ۳) عبور از خط میانی میز دروازه را باز می‌کند. برای گل باید تمام توپ از خط دروازه رد شود.<br><br>
        ۴) تعداد حرکت و حالت حرفه‌ای را از منوی اصلی تنظیم کنید.</p>
+    <div class="tutorial-diagram" aria-label="نمونهٔ خط نشانه‌گیری">
+      <svg viewBox="0 0 500 100" role="img" aria-hidden="true">
+        <defs><marker id="aim-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#42e9ff"/></marker></defs>
+        <circle cx="70" cy="51" r="23" fill="#f7f3e8" stroke="#c8b98e" stroke-width="3"/>
+        <path d="M58 50 Q70 37 82 51 M63 59 L77 44" fill="none" stroke="#6d8dc4" stroke-width="2"/>
+        <line x1="101" y1="51" x2="338" y2="51" stroke="#42e9ff" stroke-width="5" stroke-dasharray="12 9" marker-end="url(#aim-arrow)"/>
+        <circle cx="380" cy="31" r="20" fill="#f7f3e8" stroke="#c8b98e" stroke-width="3"/>
+        <circle cx="380" cy="72" r="20" fill="#f7f3e8" stroke="#c8b98e" stroke-width="3"/>
+      </svg>
+      <small>خط و جهت شوت در آموزش همیشه نمایش داده می‌شود</small>
+    </div>
     <button id="tutorial-continue">متوجه شدم؛ شروع بازی</button>
   </section>
 </div>
 <script>
 "use strict";
 /* ==================================================================
-   آینهٔ مرورگری «سه توپ» — هم‌خوان با main.gd نسخهٔ ۲.۲
+   آینهٔ مرورگری «سه توپ» — هم‌خوان با main.gd نسخهٔ ۲.۳
    همهٔ ثابت‌ها، هندسه و منطق داوری از main.gd گرفته شده‌اند.
    این فایل خودِ موتور Godot نیست؛ شبیه‌سازی قوانین برای تست تعادل است.
 ================================================================== */
@@ -81,8 +110,8 @@ let movesPerTurn = DEFAULT_MOVES_PER_TURN, configuredMoves = DEFAULT_MOVES_PER_T
 // پریست‌های تعادل (کلید ۱/۲/۳)
 const QP = new URLSearchParams(location.search);
 const PRESETS = {
-  "1": {name:"main.gd (نیمه‌زمین)", ratio:0.50, damp:2.0,  imp:10.0},
-  "2": {name:"سخت‌تر",               ratio:0.45, damp:2.0,  imp:10.0},
+  "1": {name:"main.gd (عقب‌تر)", ratio:0.47, damp:2.0,  imp:10.0},
+  "2": {name:"سخت‌تر",               ratio:0.42, damp:2.0,  imp:10.0},
   "3": {name:"آسان‌تر",              ratio:0.75, damp:2.0,  imp:10.0},
 };
 let presetKey = QP.get("p") || "1";
@@ -98,7 +127,7 @@ const FA=["۰","۱","۲","۳","۴","۵","۶","۷","۸","۹"];
 const fa=n=>String(n).split("").map(c=>FA[+c]??c).join("");
 
 // ------------------------------ وضعیت
-const ST = {MENU:0, WAIT:1, MOVING:2, TRANS:3, OVER:4};
+const ST = {MENU:0, SETUP:1, WAIT:2, MOVING:3, TRANS:4, OVER:5};
 let state = ST.MENU;
 let balls = [];
 let activeBall = null, otherBalls = [], prevActive = {x:0,y:0}, shotOrigin = {x:0,y:0};
@@ -156,7 +185,7 @@ function makeBall(){
     let r=R*rnd(0.86,1.04)*(1+0.10*Math.cos(a*2+blend));
     pts.push({x:Math.cos(a)*r, y:Math.sin(a)*r});
   }
-  return {p:{x:0,y:0}, v:{x:0,y:0}, a:rnd(0,6.28), spin:0, pts};
+  return {p:{x:0,y:0}, v:{x:0,y:0}, a:rnd(0,6.28), spin:0, dropT:1, pts};
 }
 
 // ------------------------------ جریان بازی
@@ -180,15 +209,17 @@ function afterDelay(sec, fn){ timers.push({t:sec, fn}); }
 
 function startTurn(p){
   player = p;
-  state = ST.WAIT;
   movesLeft = movesPerTurn;
+  state = ST.SETUP;
   activeBall=null; otherBalls=[]; dragBall=null; dragging=false; gapCrossed=false;
   shotOpened=false; shotCollided=false; passLineA=null; passLineB=null;
   setGate(false, true);
   const base=[{x:360,y:1520},{x:540,y:1390},{x:720,y:1520}];
   balls.forEach((b,i)=>{
-    b.p = {x: base[i].x + rnd(-18,18), y: base[i].y + rnd(-14,14)};
-    b.v = {x:0,y:0}; b.spin=0; b.a=rnd(0,6.28);
+    b.p = {x: base[i].x + rnd(-58,58), y: base[i].y + rnd(-46,46)};
+    const scatterAngle=rnd(0,Math.PI*2), scatterSpeed=rnd(150,245);
+    b.v = {x:Math.cos(scatterAngle)*scatterSpeed,y:Math.sin(scatterAngle)*scatterSpeed};
+    b.spin=rnd(-6,6); b.a=rnd(0,6.28); b.dropT=0;
   });
   statusText = "";
   showBanner("نوبت بازیکن " + fa(p), p===1 ? "#73c8ff" : "#ff8585");
@@ -200,7 +231,7 @@ function startMatch(){
 }
 function updateHud(){
   turnText = "نوبت " + fa(player) + " | حرکت " + fa(movesLeft) + "/" + fa(movesPerTurn)
-           + " | دروازه " + (gateOpen ? "باز" : "قفل");
+           + " | مسیر " + (gateOpen ? "آزاد" : "بسته");
 }
 
 // ------------------------------ ذرات
@@ -297,7 +328,10 @@ function checkShot(){
   if(state!==ST.MOVING || !activeBall) return;
   const act = activeBall.p;
 
-  if(shotCollided){ finish("FOUL","برخورد با توپ دیگر! نوبت سوخت."); return; }
+  if(shotCollided){
+    if(balls.every(b=>Math.hypot(b.v.x,b.v.y)<=STOP_SPEED)) finish("FOUL","برخورد با توپ دیگر! نوبت سوخت.");
+    return;
+  }
   // ۱) گل فقط وقتی ثبت می‌شود که تمام توپ از خط ورودی دروازه عبور کند.
   if(act.y+R <= GOAL.y+GOAL.h+6 && act.x-R>=GOAL.x && act.x+R<=GOAL.x+GOAL.w && gapOpenAt(act)){
     burst(GOAL.x+GOAL.w/2, GOAL.y+40, 48, "#ffe066", 1.1, 220, 520);
@@ -325,6 +359,7 @@ function checkShot(){
 
 function judgeShot(){
   if(!activeBall) return;
+  if(shotCollided) return finish("FOUL","برخورد با توپ دیگر! نوبت سوخت.");
   const act = activeBall.p;
   const crossed = gapCrossed || !!(passLineA && passLineB && segInt(shotOrigin,act,passLineA,passLineB));
   const opened = shotOpened || balls.some(b=>b.p.y < ATTACK_Y);
@@ -371,8 +406,7 @@ function finish(kind, reason){
   } else {
     state = ST.WAIT;
     if(kind==="OPENER" || gateOpen){
-      statusText = "دروازه باز شد!";
-      showBanner("دروازه باز شد!", "#4dffa6");
+      statusText = "";
     } else {
       statusText = "پاس صحیح! حرکت بعدی.";
       showBanner("پاس صحیح", "#73f2ff");
@@ -631,7 +665,10 @@ function drawDoor(x){
 }
 function drawBall(b){
   ctx.save();
-  ctx.translate(b.p.x,b.p.y);
+  const fall = 1-(b.dropT||0);
+  const squash = Math.sin((b.dropT||0)*Math.PI)*0.14;
+  ctx.translate(b.p.x,b.p.y-fall*68);
+  ctx.scale(1+squash,1-squash);
   ctx.save(); ctx.translate(6,8);
   ctx.beginPath();
   b.pts.forEach((p,i)=> i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y));
@@ -655,84 +692,78 @@ function drawBall(b){
   }
 }
 
+function drawScoreCard(x,y,w,h,name,score,color,active,small=false){
+  ctx.save();
+  const alpha=active?0.92:0.66;
+  rr(x,y,w,h,13);
+  ctx.fillStyle=active?"rgba(19,24,29,.96)":"rgba(12,15,18,.88)"; ctx.fill();
+  ctx.strokeStyle=color; ctx.globalAlpha=active?0.9:0.42; ctx.lineWidth=active?2.5:1.5; ctx.stroke();
+  ctx.globalAlpha=alpha; ctx.fillStyle=color; rr(x+5,y+7,5,h-14,3); ctx.fill();
+  ctx.textBaseline="middle"; ctx.textAlign="left";
+  ctx.font=`bold ${small?30:35}px Vazirmatn,Tahoma,sans-serif`; ctx.fillStyle="#fff4dc";
+  ctx.fillText(fa(score),x+24,y+h/2+1);
+  ctx.textAlign="right"; ctx.font=`${small?18:21}px Vazirmatn,Tahoma,sans-serif`;
+  ctx.fillStyle=active?"#f4e9d5":"#aaa9a5";
+  ctx.fillText(name,x+w-18,y+h/2+1);
+  if(active){ctx.beginPath();ctx.arc(x+w-10,y+10,3,0,Math.PI*2);ctx.fillStyle=color;ctx.fill();}
+  ctx.restore();
+}
+
 function drawHud(){
   ctx.save();
   ctx.setTransform(dpr*scale,0,0,dpr*scale,ox*dpr,oy*dpr);
   if(landscape){ drawHudLandscape(); ctx.restore(); return; }
   ctx.direction="rtl"; ctx.textBaseline="middle";
-  ctx.fillStyle="rgba(15,12,10,0.94)"; ctx.fillRect(0,0,W,118);
+  ctx.fillStyle="rgba(10,13,17,0.96)"; ctx.fillRect(0,0,W,126);
+  drawScoreCard(15,7,282,51,"بازیکن ۱",scores[0],"#73c8ff",player===1);
+  drawScoreCard(15,68,282,51,"بازیکن ۲",scores[1],"#ff8585",player===2);
 
-  ctx.font="32px Vazirmatn,Tahoma,sans-serif"; ctx.textAlign="right";
-  ctx.fillStyle="#73c8ff";
-  ctx.fillText((player===1?"▶ ":"   ")+"بازیکن ۱: "+fa(scores[0]), 330, 34);
-  ctx.fillStyle="#ff8585";
-  ctx.fillText((player===2?"▶ ":"   ")+"بازیکن ۲: "+fa(scores[1]), 330, 78);
-
-  ctx.fillStyle="#f2f2f2"; ctx.font="27px Vazirmatn,Tahoma,sans-serif";
-  ctx.fillText(turnText, 1060, 32);
-  ctx.fillStyle="#ffe66b"; ctx.font="24px Vazirmatn,Tahoma,sans-serif";
-  ctx.fillText(statusText, 1060, 76);
-
-  // سنجهٔ دروازه
+  ctx.textAlign="right"; ctx.fillStyle="#f2f2f2"; ctx.font="24px Vazirmatn,Tahoma,sans-serif";
+  ctx.fillText(turnText,740,34);
+  ctx.fillStyle="#d1c8b8"; ctx.font="20px Vazirmatn,Tahoma,sans-serif";
+  ctx.fillText(statusText,740,76);
   if(!professionalMode){
-    ctx.fillStyle="rgba(255,255,255,0.16)"; ctx.fillRect(356,98,240,10);
-    ctx.fillStyle = gateOpen?"#4dff80":"#ff5a5a";
-    ctx.fillRect(356,98,gateOpen?240:0,10);
+    ctx.fillStyle="rgba(255,255,255,0.12)"; rr(315,101,270,10,5); ctx.fill();
+    if(gateOpen){ctx.fillStyle="#70edaf";rr(315,101,270,10,5);ctx.fill();}
   }
 
-  // دکمه‌های تعویض نوبت و منو
   ctx.fillStyle="rgba(240,240,245,0.94)"; rr(752,18,204,82,12); ctx.fill();
   ctx.fillStyle="#1a1a1a"; ctx.font="19px Vazirmatn,Tahoma,sans-serif"; ctx.textAlign="center";
-  ctx.fillText(state===ST.OVER?"بازی جدید":"تعویض نوبت", 854, 59);
+  ctx.fillText(state===ST.OVER?"بازی جدید":"تعویض نوبت",854,59);
   ctx.fillStyle="rgba(240,240,245,0.94)"; rr(968,18,94,82,12); ctx.fill();
   ctx.fillStyle="#1a1a1a"; ctx.font="20px Vazirmatn,Tahoma,sans-serif";
   ctx.fillText("منو",1015,59);
-
-  // بنر
   if(banner.on){
-    const t=banner.t;
-    let sc=1, al=1;
-    if(t<0.18) sc=lerp(0.72,1.04,t/0.18);
-    else if(t<0.98) sc=1.04;
-    else al=1-(t-0.98)/0.32;
-    ctx.save(); ctx.translate(W/2,965); ctx.scale(sc,sc);
-    ctx.globalAlpha=clamp(al,0,1);
-    ctx.font="bold 58px Vazirmatn,Tahoma,sans-serif"; ctx.textAlign="center";
-    ctx.lineWidth=10; ctx.strokeStyle="rgba(0,0,0,0.55)";
-    ctx.strokeText(banner.text,0,0);
-    ctx.fillStyle=banner.color; ctx.fillText(banner.text,0,0);
-    ctx.restore(); ctx.globalAlpha=1;
+    const t=banner.t; let sc=1,al=1;
+    if(t<0.18) sc=lerp(0.72,1.04,t/0.18); else if(t<0.98) sc=1.04; else al=1-(t-0.98)/0.32;
+    ctx.save();ctx.translate(W/2,965);ctx.scale(sc,sc);ctx.globalAlpha=clamp(al,0,1);
+    ctx.font="bold 58px Vazirmatn,Tahoma,sans-serif";ctx.textAlign="center";
+    ctx.lineWidth=10;ctx.strokeStyle="rgba(0,0,0,0.55)";ctx.strokeText(banner.text,0,0);
+    ctx.fillStyle=banner.color;ctx.fillText(banner.text,0,0);ctx.restore();ctx.globalAlpha=1;
   }
-
-  ctx.direction="ltr";
-  ctx.restore();
+  ctx.direction="ltr";ctx.restore();
 }
 
 function drawHudLandscape(){
-  ctx.direction="rtl"; ctx.textBaseline="middle";
-  ctx.fillStyle="rgba(15,12,10,0.94)"; ctx.fillRect(0,0,1920,112);
-  ctx.textAlign="right"; ctx.font="25px Vazirmatn,Tahoma,sans-serif";
-  ctx.fillStyle="#73c8ff"; ctx.fillText((player===1?"▶ ":"   ")+"بازیکن ۱: "+fa(scores[0]),294,30);
-  ctx.fillStyle="#ff8585"; ctx.fillText((player===2?"▶ ":"   ")+"بازیکن ۲: "+fa(scores[1]),294,75);
-  ctx.fillStyle="#f2f2f2"; ctx.font="24px Vazirmatn,Tahoma,sans-serif";
-  ctx.fillText(turnText,930,30);
-  ctx.fillStyle="#ffe66b"; ctx.font="20px Vazirmatn,Tahoma,sans-serif";
-  ctx.fillText(statusText,930,73);
+  ctx.direction="rtl";ctx.textBaseline="middle";
+  ctx.fillStyle="rgba(10,13,17,0.96)";ctx.fillRect(0,0,1920,112);
+  drawScoreCard(16,6,282,46,"بازیکن ۱",scores[0],"#73c8ff",player===1,true);
+  drawScoreCard(16,60,282,46,"بازیکن ۲",scores[1],"#ff8585",player===2,true);
+  ctx.textAlign="right";ctx.font="23px Vazirmatn,Tahoma,sans-serif";ctx.fillStyle="#f2f2f2";
+  ctx.fillText(turnText,1360,30);
+  ctx.font="19px Vazirmatn,Tahoma,sans-serif";ctx.fillStyle="#d1c8b8";
+  ctx.fillText(statusText,1360,73);
   if(!professionalMode){
-    ctx.fillStyle="rgba(255,255,255,0.16)"; ctx.fillRect(330,96,250,9);
-    ctx.fillStyle=gateOpen?"#4dff80":"#ff5a5a"; ctx.fillRect(330,96,gateOpen?250:0,9);
+    ctx.fillStyle="rgba(255,255,255,0.12)";rr(820,96,250,9,4);ctx.fill();
+    if(gateOpen){ctx.fillStyle="#70edaf";rr(820,96,250,9,4);ctx.fill();}
   }
-
-  ctx.fillStyle="rgba(240,240,245,0.94)"; rr(1500,13,240,78,12); ctx.fill();
-  ctx.fillStyle="#1a1a1a"; ctx.font="19px Vazirmatn,Tahoma,sans-serif"; ctx.textAlign="center";
+  ctx.fillStyle="rgba(240,240,245,0.94)";rr(1500,13,240,78,12);ctx.fill();
+  ctx.fillStyle="#1a1a1a";ctx.font="19px Vazirmatn,Tahoma,sans-serif";ctx.textAlign="center";
   ctx.fillText(state===ST.OVER?"بازی جدید":"تعویض نوبت",1620,53);
-  ctx.fillStyle="rgba(240,240,245,0.94)"; rr(1760,13,135,78,12); ctx.fill();
-  ctx.fillStyle="#1a1a1a"; ctx.font="20px Vazirmatn,Tahoma,sans-serif";
+  ctx.fillStyle="rgba(240,240,245,0.94)";rr(1760,13,135,78,12);ctx.fill();
+  ctx.fillStyle="#1a1a1a";ctx.font="20px Vazirmatn,Tahoma,sans-serif";
   ctx.fillText("منو",1827,53);
-  if(banner.on){
-    ctx.font="bold 54px Vazirmatn,Tahoma,sans-serif"; ctx.textAlign="center";
-    ctx.fillStyle=banner.color; ctx.fillText(banner.text,960,560);
-  }
+  if(banner.on){ctx.font="bold 54px Vazirmatn,Tahoma,sans-serif";ctx.textAlign="center";ctx.fillStyle=banner.color;ctx.fillText(banner.text,960,560);}
   ctx.direction="ltr";
 }
 
@@ -750,13 +781,20 @@ function frame(now){
   gateAnim.l=lerp(gateAnim.l,gateAnim.lt,sp);
   gateAnim.r=lerp(gateAnim.r,gateAnim.rt,sp);
 
-  if(state===ST.MOVING){
+  for(const b of balls) if(b.dropT<1) b.dropT=Math.min(1,b.dropT+dt*2.8);
+  if(state===ST.MOVING || state===ST.SETUP){
     timeAcc+=dt;
     let guard=0;
     while(timeAcc>=DT && guard++<40){
-      stepPhysics(); checkShot(); timeAcc-=DT;
-      if(state!==ST.MOVING) break;
+      stepPhysics();
+      if(state===ST.MOVING) checkShot();
+      timeAcc-=DT;
+      if(state!==ST.MOVING && state!==ST.SETUP) break;
     }
+  }
+  if(state===ST.SETUP && balls.every(b=>b.dropT>=1 && Math.hypot(b.v.x,b.v.y)<=STOP_SPEED)){
+    balls.forEach(b=>b.v={x:0,y:0});
+    state=ST.WAIT; updateHud();
   }
   shake = shake>0.1 ? lerp(shake,0,1-Math.pow(0.0001,dt)) : 0;
 
