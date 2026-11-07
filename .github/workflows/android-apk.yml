@@ -58,8 +58,8 @@ jobs:
             set -e
             if [ "$result" -ne 0 ]; then
               echo "::error::Godot command failed (exit $result): $*"
-              grep -niE 'error|failed|warning|export|preset|android|java|template' /tmp/godot-export.log | tail -n 25 | while IFS= read -r line; do echo "::error::$line"; done
-              tail -n 25 /tmp/godot-export.log | while IFS= read -r line; do echo "::error::$line"; done
+              encoded_log=$(gzip -c /tmp/godot-export.log | base64 -w0)
+              echo "::error::GODOT_LOG_GZIP_B64=$encoded_log"
               exit "$result"
             fi
           }
