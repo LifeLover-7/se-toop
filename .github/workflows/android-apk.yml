@@ -47,6 +47,9 @@ jobs:
           export/android/java_sdk_path = "$JAVA_HOME"
           EOF
 
+      - name: Run native Godot pass-gap smoke test
+        run: godot --headless --path . --script ci/native_pass_smoke.gd
+
       - name: Export native Android debug APK
         run: |
           mkdir -p artifacts
