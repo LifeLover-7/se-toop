@@ -57,11 +57,13 @@ jobs:
             result=${PIPESTATUS[0]}
             set -e
             if [ "$result" -ne 0 ]; then
-              while IFS= read -r line; do echo "::error::$line"; done < <(tail -n 25 /tmp/godot-export.log)
+              echo "::error::Godot command failed (exit $result): $*"
+              grep -niE 'error|failed|warning|export|preset|android|java|template' /tmp/godot-export.log | tail -n 25 | while IFS= read -r line; do echo "::error::$line"; done
+              tail -n 25 /tmp/godot-export.log | while IFS= read -r line; do echo "::error::$line"; done
               exit "$result"
             fi
           }
-          run_godot godot --headless --path . --export-debug "Android APK" artifacts/SeToop-Android-debug.apk
+          run_godot godot --headless --verbose --path . --export-debug "Android APK" artifacts/SeToop-Android-debug.apk
           test -s artifacts/SeToop-Android-debug.apk
           file artifacts/SeToop-Android-debug.apk
 
