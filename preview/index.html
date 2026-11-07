@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>سه توپ — پیش‌نمایش بازی (main.gd v2.4)</title>
+<title>سه توپ — پیش‌نمایش بازی (main.gd v2.5)</title>
 <style>
   html,body{margin:0;height:100%;background:#0b0806;overflow:hidden;
     font-family:"Vazirmatn","Segoe UI",Tahoma,system-ui,sans-serif;touch-action:none}
@@ -28,6 +28,7 @@
   .move-row{display:flex;align-items:center;justify-content:center;gap:16px;margin:18px auto 20px;padding:12px 10px;
     border:1px solid rgba(255,255,255,.075);border-radius:18px;background:rgba(6,9,12,.4)}
   .move-row strong{min-width:220px;font-size:clamp(1.1rem,3.5vw,1.45rem);color:#f3ead9}
+  .score-row{margin-top:-8px;border-color:rgba(232,182,94,.13);background:rgba(6,9,12,.27)}
   .pro-toggle{position:relative;display:flex;align-items:center;justify-content:center;gap:14px;width:min(100%,430px);min-height:66px;
     margin:0 auto 22px;padding:9px 16px;box-sizing:border-box;border:1px solid rgba(232,182,94,.28);border-radius:18px;
     background:linear-gradient(135deg,rgba(42,50,57,.94),rgba(24,28,33,.96));cursor:pointer;text-align:right;
@@ -51,13 +52,14 @@
   button:active{transform:scale(.97)}
   button:disabled{opacity:.42;cursor:default;filter:grayscale(.45);box-shadow:none}
   button:focus-visible{outline:3px solid #ffe4a7;outline-offset:3px}
-  #move-minus,#move-plus{width:54px;padding:8px;font-size:1.5rem;border-radius:13px;background:linear-gradient(180deg,#333c47,#20262e);color:#f6e8cf}
+  #move-minus,#move-plus,#score-minus,#score-plus{width:54px;padding:8px;font-size:1.5rem;border-radius:13px;background:linear-gradient(180deg,#333c47,#20262e);color:#f6e8cf}
   #start-game,#tutorial-continue{width:min(100%,430px);font-weight:800;color:#23170a;background:linear-gradient(180deg,#ffd789,#d79f4d);font-size:1.08rem}
   .note{font-size:.84rem!important;color:#9d9b98!important;margin:19px 0 0!important}
   .tutorial-diagram{margin:8px auto 20px;padding:12px 10px 6px;border:1px solid rgba(64,220,255,.2);border-radius:18px;background:rgba(10,22,28,.56)}
   .tutorial-diagram svg{display:block;width:100%;height:auto;max-height:105px}
   .tutorial-diagram small{display:block;color:#85e8f4;font-size:.88rem;margin:1px 0 4px}
-  @media(max-width:430px){.card{padding:27px 18px 22px}.move-row{gap:8px}.move-row strong{min-width:190px}.paper-ball{width:32px;height:32px}}
+  @media(max-width:430px){.card{padding:27px 18px 22px}.move-row{gap:8px}.move-row strong{min-width:0;flex:1;font-size:clamp(1rem,3.5vw,1.2rem)}.paper-ball{width:32px;height:32px}}
+  @media(max-width:360px){.card{padding-inline:12px}.move-row{gap:4px;padding-inline:4px}.move-row strong{min-width:150px;font-size:1rem}#move-minus,#move-plus,#score-minus,#score-plus{width:46px;min-width:46px;padding:6px}}
 </style>
 </head>
 <body>
@@ -72,6 +74,11 @@
       <button id="move-minus" aria-label="کم کردن حرکت">−</button>
       <strong id="move-count">۳ حرکت در هر نوبت</strong>
       <button id="move-plus" aria-label="زیاد کردن حرکت">+</button>
+    </div>
+    <div class="move-row score-row">
+      <button id="score-minus" aria-label="کم کردن گل لازم برای برد">−</button>
+      <strong id="score-target">هدف قهرمانی: ۳ گل</strong>
+      <button id="score-plus" aria-label="زیاد کردن گل لازم برای برد">+</button>
     </div>
     <label class="pro-toggle">
       <input id="professional-mode" type="checkbox" aria-label="حالت حرفه‌ای">
@@ -106,7 +113,7 @@
 <script>
 "use strict";
 /* ==================================================================
-   آینهٔ مرورگری «سه توپ» — هم‌خوان با main.gd نسخهٔ ۲.۴
+   آینهٔ مرورگری «سه توپ» — هم‌خوان با main.gd نسخهٔ ۲.۵
    همهٔ ثابت‌ها، هندسه و منطق داوری از main.gd گرفته شده‌اند.
    این فایل خودِ موتور Godot نیست؛ شبیه‌سازی قوانین برای تست تعادل است.
 ================================================================== */
@@ -122,7 +129,8 @@ const MAX_DRAG = 320;
 const IMPULSE = 10.0;
 const DAMP = 2.0;
 const STOP_SPEED = 12;
-const WINNING_SCORE = 3;
+const DEFAULT_WINNING_SCORE = 3;
+const MIN_WINNING_SCORE = 1, MAX_WINNING_SCORE = 15;
 const DEFAULT_MOVES_PER_TURN = 3;
 const MIN_MOVES_PER_TURN = 1, MAX_MOVES_PER_TURN = 9, PROFESSIONAL_MIN_MOVES = 3;
 const MIN_SHOT_DRAG = 24, PRO_MIN_SWIPE_SPEED = 120, PRO_MAX_SWIPE_SPEED = 1600;
@@ -158,6 +166,12 @@ let gateAnim = {l:390, r:540, lt:390, rt:540};
 let dragging = false, dragBall = null, dragPos = {x:0,y:0}, dragStartPos = {x:0,y:0}, dragStartAt = 0;
 let dragLastPos = {x:0,y:0}, dragLastAt = 0, proMotionDistance = 0, proMotionDuration = 0;
 let player = 1, scores = [0,0], movesLeft = movesPerTurn;
+let winningScore = DEFAULT_WINNING_SCORE;
+try {
+  const savedScoreTarget = Number(localStorage.getItem("se-toop-winning-score"));
+  if(Number.isFinite(savedScoreTarget) && savedScoreTarget >= MIN_WINNING_SCORE)
+    winningScore = Math.min(MAX_WINNING_SCORE, Math.floor(savedScoreTarget));
+} catch(e) {}
 let shake = 0, parts = [], timers = [];
 let professionalMode = false;
 let statusText = "", turnText = "", banner = {text:"", color:"#fff", t:0, on:false};
@@ -177,6 +191,7 @@ const WALLS = (()=>{
     {x:L-t, y:B,   w:(Rt-L)+2*t, h:t},
     {x:L-t, y:T-t, w:(ml-L)+t, h:t},
     {x:mr,  y:T-t, w:(Rt-mr)+t, h:t},
+    {x:GOAL.x, y:GOAL.y-WALL, w:GOAL.w, h:WALL}, // دیوارهٔ پشتی تور
   ];
 })();
 
@@ -268,7 +283,7 @@ function startMatch(){
 }
 function updateHud(){
   turnText = "نوبت " + fa(player) + " | حرکت " + fa(movesLeft) + "/" + fa(movesPerTurn)
-           + " | مسیر " + (gateOpen ? "آزاد" : "بسته");
+           + " | هدف " + fa(winningScore) + " | مسیر " + (gateOpen ? "آزاد" : "بسته");
 }
 
 // ------------------------------ ذرات
@@ -418,7 +433,7 @@ function finish(kind, reason){
   if(kind==="GOAL"){
     scores[player-1] += 1;
     updateHud();
-    if(scores[player-1] >= WINNING_SCORE){
+    if(scores[player-1] >= winningScore){
       state = ST.OVER;
       statusText = "بازیکن " + fa(player) + " برنده شد!";
       showBanner("قهرمان: بازیکن " + fa(player), "#4dff80");
@@ -467,6 +482,9 @@ const proHintEl = document.getElementById("pro-hint");
 const moveMinusEl = document.getElementById("move-minus");
 const movePlusEl = document.getElementById("move-plus");
 const moveCountEl = document.getElementById("move-count");
+const scoreMinusEl = document.getElementById("score-minus");
+const scorePlusEl = document.getElementById("score-plus");
+const scoreTargetEl = document.getElementById("score-target");
 const startGameEl = document.getElementById("start-game");
 let scale=1, ox=0, oy=0, dpr=1, landscape=false;
 
@@ -489,6 +507,9 @@ function updateMoveCount(){
   moveCountEl.textContent=fa(configuredMoves)+" حرکت در هر نوبت";
   moveMinusEl.disabled=configuredMoves<=minimumMoveCount();
   movePlusEl.disabled=configuredMoves>=MAX_MOVES_PER_TURN;
+  scoreTargetEl.textContent="هدف قهرمانی: "+fa(winningScore)+" گل";
+  scoreMinusEl.disabled=winningScore<=MIN_WINNING_SCORE;
+  scorePlusEl.disabled=winningScore>=MAX_WINNING_SCORE;
   proHintEl.textContent=professionalMode?"سوایپ رو به جلو · سرعت انگشت = قدرت · گل از حرکت سوم":"خطوط راهنما روشن می‌مانند";
 }
 function showMenu(){
@@ -525,6 +546,16 @@ moveMinusEl.addEventListener("click",()=>{
 });
 movePlusEl.addEventListener("click",()=>{
   configuredMoves=Math.min(MAX_MOVES_PER_TURN,configuredMoves+1); updateMoveCount();
+});
+scoreMinusEl.addEventListener("click",()=>{
+  winningScore=Math.max(MIN_WINNING_SCORE,winningScore-1);
+  try{localStorage.setItem("se-toop-winning-score",String(winningScore));}catch(e){}
+  updateMoveCount(); updateHud();
+});
+scorePlusEl.addEventListener("click",()=>{
+  winningScore=Math.min(MAX_WINNING_SCORE,winningScore+1);
+  try{localStorage.setItem("se-toop-winning-score",String(winningScore));}catch(e){}
+  updateMoveCount(); updateHud();
 });
 startGameEl.addEventListener("click",hideMenuAndStart);
 updateMoveCount();
@@ -673,6 +704,7 @@ function draw(){
   // دروازه
   ctx.fillStyle="#123d26"; ctx.fillRect(GOAL.x-16,GOAL.y-16,GOAL.w+32,GOAL.h+18);
   ctx.fillStyle="#1c7f49"; ctx.fillRect(GOAL.x,GOAL.y,GOAL.w,GOAL.h);
+  ctx.fillStyle="#21573b"; ctx.fillRect(GOAL.x,GOAL.y-WALL,GOAL.w,WALL);
   ctx.strokeStyle="rgba(255,255,255,0.13)"; ctx.lineWidth=1.5;
   for(let x=GOAL.x;x<=GOAL.x+GOAL.w;x+=24){
     ctx.beginPath(); ctx.moveTo(x,GOAL.y); ctx.lineTo(x,GOAL.y+GOAL.h); ctx.stroke();
@@ -783,7 +815,7 @@ function drawScoreCard(x,y,w,h,name,score,color,active,small=false){
   ctx.globalAlpha=alpha; ctx.fillStyle=color; rr(x+5,y+7,5,h-14,3); ctx.fill();
   ctx.textBaseline="middle"; ctx.textAlign="left";
   ctx.font=`bold ${small?34:40}px Vazirmatn,Tahoma,sans-serif`; ctx.fillStyle="#fff4dc";
-  ctx.fillText(fa(score),x+24,y+h/2+1);
+  ctx.fillText(fa(score)+"/"+fa(winningScore),x+24,y+h/2+1);
   ctx.textAlign="right"; ctx.font=`600 ${small?20:23}px Vazirmatn,Tahoma,sans-serif`;
   ctx.fillStyle=active?"#f4e9d5":"#aaa9a5";
   ctx.fillText(name,x+w-18,y+h/2+1);

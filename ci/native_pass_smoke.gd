@@ -51,5 +51,35 @@ func _run() -> void:
 		push_error(failure)
 		quit(1)
 		return
-	print("Native Godot gap-pass smoke test passed: 200px spacing, no foul, one move consumed.")
+	var failures: Array[String] = []
+	if game.get_node_or_null("GoalBackstop") == null:
+		failures.append("Goal tunnel has no physical backstop")
+	game.winning_score = 2
+	game.scores[0] = 1
+	game._update_hud()
+	if game.p1_score_value.text != "۱/۲":
+		failures.append("Configurable score target is missing from the scoreboard")
+	game._finish_shot(3)
+	if game.state != 5:
+		failures.append("Match did not end at the configured score target")
+	game._handle_back_request()
+	if game.state != 0 or not game.menu_overlay.visible:
+		failures.append("Back request did not return to the game menu")
+	game._set_gate(true, true)
+	var goal_probe: RigidBody2D = game.balls[0]
+	goal_probe.global_position = Vector2(540, 180)
+	PhysicsServer2D.body_set_state(
+		goal_probe.get_rid(), PhysicsServer2D.BODY_STATE_TRANSFORM, goal_probe.global_transform)
+	goal_probe.linear_velocity = Vector2(0, -600)
+	goal_probe.sleeping = false
+	for _frame in range(20):
+		await physics_frame
+	if goal_probe.linear_velocity.y <= 0:
+		failures.append("Ball passed through the goal backstop instead of bouncing")
+	if not failures.is_empty():
+		for failure_message in failures:
+			push_error(failure_message)
+		quit(1)
+		return
+	print("Native smoke tests passed: pass, goal bounce, score target, and back navigation.")
 	quit(0)

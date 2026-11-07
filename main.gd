@@ -17,7 +17,9 @@ const PRO_MAX_SWIPE_SPEED := 1600.0
 const IMPULSE_MULTIPLIER := 10.0
 const STOP_SPEED_THRESHOLD := 12.0
 const LINEAR_DAMP := 2.0
-const WINNING_SCORE := 3
+const DEFAULT_WINNING_SCORE := 3
+const MIN_WINNING_SCORE := 1
+const MAX_WINNING_SCORE := 15
 const DEFAULT_MOVES_PER_TURN := 3
 const MIN_MOVES_PER_TURN := 1
 const MAX_MOVES_PER_TURN := 9
@@ -62,6 +64,7 @@ var scores: Array[int] = [0, 0]
 var moves_per_turn := DEFAULT_MOVES_PER_TURN
 var configured_moves := DEFAULT_MOVES_PER_TURN
 var moves_left := DEFAULT_MOVES_PER_TURN
+var winning_score := DEFAULT_WINNING_SCORE
 var professional_mode := false
 
 # ---------------------------------------------------------------- نودها
@@ -114,6 +117,10 @@ var menu_hint: Label
 var move_count_label: Label
 var moves_down_button: Button
 var moves_up_button: Button
+var score_target_label: Label
+var score_down_button: Button
+var score_up_button: Button
+var exit_confirmation: ConfirmationDialog
 var start_game_button: Button
 var menu_button: Button
 var p1_score_label: Label
@@ -135,6 +142,7 @@ var font_ready := false
 # ---------------------------------------------------------------- چرخهٔ عمر
 func _ready() -> void:
 	randomize()
+	_load_winning_score()
 	_setup_camera()
 	_setup_audio()
 	_build_environment()
@@ -180,7 +188,7 @@ func _setup_font() -> void:
 	var labels: Array[Label] = [p1_score_label, p2_score_label, p1_score_value,
 		p2_score_value, turn_info_label, status_label, banner_label, toast_label,
 		menu_kicker, menu_title, menu_hint, menu_emblem, move_count_label,
-		tutorial_title, tutorial_text, tutorial_guide_demo]
+		score_target_label, tutorial_title, tutorial_text, tutorial_guide_demo]
 	for lbl in labels:
 		if lbl != null:
 			lbl.add_theme_font_override("font", sys_font)
@@ -190,6 +198,9 @@ func _setup_font() -> void:
 	moves_up_button.add_theme_font_override("font", sys_font)
 	start_game_button.add_theme_font_override("font", sys_font)
 	professional_button.add_theme_font_override("font", sys_font)
+	score_down_button.add_theme_font_override("font", sys_font)
+	score_up_button.add_theme_font_override("font", sys_font)
+	exit_confirmation.add_theme_font_override("font", sys_font)
 	tutorial_continue_button.add_theme_font_override("font", sys_font)
 
 func _setup_audio() -> void:
@@ -315,9 +326,14 @@ func _build_walls() -> void:
 	_add_wall(Vector2((left + right) * 0.5, bottom + t * 0.5), Vector2(right - left + t * 2.0, t))
 	_add_wall(Vector2((left + mouth_l) * 0.5, top - t * 0.5), Vector2(mouth_l - left + t, t))
 	_add_wall(Vector2((mouth_r + right) * 0.5, top - t * 0.5), Vector2(right - mouth_r + t, t))
+	# دیوارهٔ پشتی تور؛ توپ بعد از گل از قاب دروازه خارج نمی‌شود.
+	_add_wall(Vector2(GOAL_RECT.get_center().x, GOAL_RECT.position.y - t * 0.5),
+		Vector2(GOAL_RECT.size.x, t), "GoalBackstop")
 
-func _add_wall(center: Vector2, size: Vector2) -> void:
+func _add_wall(center: Vector2, size: Vector2, node_name: String = "") -> void:
 	var wall := StaticBody2D.new()
+	if node_name != "":
+		wall.name = node_name
 	wall.position = center
 	var col := CollisionShape2D.new()
 	var shape := RectangleShape2D.new()
@@ -346,6 +362,8 @@ func _build_goal() -> void:
 	_rect(GOAL_RECT.position - Vector2(16, 16), GOAL_RECT.size + Vector2(32, 18),
 		Color(0.07, 0.24, 0.15))
 	_rect(GOAL_RECT.position, GOAL_RECT.size, Color(0.11, 0.50, 0.29))
+	_rect(Vector2(GOAL_RECT.position.x, GOAL_RECT.position.y - WALL_THICKNESS),
+		Vector2(GOAL_RECT.size.x, WALL_THICKNESS), Color(0.13, 0.34, 0.23))
 
 	gate_led_left = _rect(Vector2(GOAL_RECT.position.x - 30, GOAL_RECT.position.y + 40),
 		Vector2(20, 20), Color(1.0, 0.15, 0.15))
@@ -555,6 +573,24 @@ func _build_hud() -> void:
 	menu_overlay.color = Color(0.025, 0.02, 0.018, 0.88)
 	menu_overlay.mouse_filter = Control.MOUSE_FILTER_STOP
 	hud_root.add_child(menu_overlay)
+	var glow_gradient := Gradient.new()
+	glow_gradient.colors = PackedColorArray([
+		Color(0.58, 0.34, 0.13, 0.42), Color(0.10, 0.07, 0.05, 0.0)
+	])
+	var glow_texture := GradientTexture2D.new()
+	glow_texture.gradient = glow_gradient
+	glow_texture.width = 512
+	glow_texture.height = 512
+	glow_texture.fill = GradientTexture2D.FILL_RADIAL
+	glow_texture.fill_from = Vector2(0.5, 0.42)
+	glow_texture.fill_to = Vector2(0.95, 0.95)
+	var glow_rect := TextureRect.new()
+	glow_rect.texture = glow_texture
+	glow_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	glow_rect.stretch_mode = TextureRect.STRETCH_SCALE
+	glow_rect.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	glow_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	menu_overlay.add_child(glow_rect)
 	menu_panel = Panel.new()
 	menu_panel.mouse_filter = Control.MOUSE_FILTER_STOP
 	menu_panel.add_theme_stylebox_override("panel", _panel_style(
@@ -582,6 +618,12 @@ func _build_hud() -> void:
 	moves_down_button.pressed.connect(_change_configured_moves.bind(-1))
 	moves_up_button = _new_button(menu_panel, "+")
 	moves_up_button.pressed.connect(_change_configured_moves.bind(1))
+	score_target_label = _label(menu_panel, Vector2.ZERO, 26, Color(1.0, 0.88, 0.62))
+	score_target_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	score_down_button = _new_button(menu_panel, "−")
+	score_down_button.pressed.connect(_change_winning_score.bind(-1))
+	score_up_button = _new_button(menu_panel, "+")
+	score_up_button.pressed.connect(_change_winning_score.bind(1))
 	professional_button = _new_button(menu_panel, "حرفه‌ای: خاموش")
 	professional_button.toggle_mode = true
 	professional_button.toggled.connect(_on_professional_toggled)
@@ -590,7 +632,17 @@ func _build_hud() -> void:
 	_style_button(professional_button, Color(0.16, 0.14, 0.12, 1.0))
 	_style_button(moves_down_button, Color(0.16, 0.14, 0.12, 1.0))
 	_style_button(moves_up_button, Color(0.16, 0.14, 0.12, 1.0))
+	_style_button(score_down_button, Color(0.16, 0.14, 0.12, 1.0))
+	_style_button(score_up_button, Color(0.16, 0.14, 0.12, 1.0))
 	start_game_button.pressed.connect(_on_start_game_pressed)
+
+	exit_confirmation = ConfirmationDialog.new()
+	exit_confirmation.title = "خروج از بازی؟"
+	exit_confirmation.dialog_text = "می‌خواهید از سه‌توپ خارج شوید؟"
+	exit_confirmation.ok_button_text = "خروج"
+	exit_confirmation.confirmed.connect(_on_exit_confirmed)
+	add_child(exit_confirmation)
+	exit_confirmation.get_cancel_button().text = "ماندن"
 
 	tutorial_overlay = ColorRect.new()
 	tutorial_overlay.color = Color(0.025, 0.02, 0.018, 0.92)
@@ -685,14 +737,14 @@ func _layout_hud(view_size: Vector2, landscape: bool) -> void:
 		score_card_p1.size = Vector2(278, 44) * scale_ui
 		score_card_p2.position = origin + Vector2(16, 61) * scale_ui
 		score_card_p2.size = Vector2(278, 44) * scale_ui
-		_layout_label(p1_score_value, Rect2(origin + Vector2(24, 5) * scale_ui,
-			Vector2(48, 42) * scale_ui), roundi(31 * scale_ui))
-		_layout_label(p2_score_value, Rect2(origin + Vector2(24, 60) * scale_ui,
-			Vector2(48, 42) * scale_ui), roundi(31 * scale_ui))
-		_layout_label(p1_score_label, Rect2(origin + Vector2(78, 5) * scale_ui,
-			Vector2(205, 42) * scale_ui), roundi(19 * scale_ui))
-		_layout_label(p2_score_label, Rect2(origin + Vector2(78, 60) * scale_ui,
-			Vector2(205, 42) * scale_ui), roundi(19 * scale_ui))
+		_layout_label(p1_score_value, Rect2(origin + Vector2(22, 5) * scale_ui,
+			Vector2(76, 42) * scale_ui), roundi(26 * scale_ui))
+		_layout_label(p2_score_value, Rect2(origin + Vector2(22, 60) * scale_ui,
+			Vector2(76, 42) * scale_ui), roundi(26 * scale_ui))
+		_layout_label(p1_score_label, Rect2(origin + Vector2(102, 5) * scale_ui,
+			Vector2(181, 42) * scale_ui), roundi(19 * scale_ui))
+		_layout_label(p2_score_label, Rect2(origin + Vector2(102, 60) * scale_ui,
+			Vector2(181, 42) * scale_ui), roundi(19 * scale_ui))
 		top_info_card.position = origin + Vector2(315, 5) * scale_ui
 		top_info_card.size = Vector2(650, 102) * scale_ui
 		_layout_label(turn_info_label, Rect2(origin + Vector2(335, 7) * scale_ui,
@@ -714,14 +766,14 @@ func _layout_hud(view_size: Vector2, landscape: bool) -> void:
 		score_card_p1.size = Vector2(292, 53) * scale_ui
 		score_card_p2.position = origin + Vector2(12, 66) * scale_ui
 		score_card_p2.size = Vector2(292, 53) * scale_ui
-		_layout_label(p1_score_value, Rect2(origin + Vector2(22, 5) * scale_ui,
-			Vector2(58, 51) * scale_ui), roundi(36 * scale_ui))
-		_layout_label(p2_score_value, Rect2(origin + Vector2(22, 66) * scale_ui,
-			Vector2(58, 51) * scale_ui), roundi(36 * scale_ui))
-		_layout_label(p1_score_label, Rect2(origin + Vector2(86, 5) * scale_ui,
-			Vector2(207, 51) * scale_ui), roundi(22 * scale_ui))
-		_layout_label(p2_score_label, Rect2(origin + Vector2(86, 66) * scale_ui,
-			Vector2(207, 51) * scale_ui), roundi(22 * scale_ui))
+		_layout_label(p1_score_value, Rect2(origin + Vector2(20, 5) * scale_ui,
+			Vector2(82, 51) * scale_ui), roundi(27 * scale_ui))
+		_layout_label(p2_score_value, Rect2(origin + Vector2(20, 66) * scale_ui,
+			Vector2(82, 51) * scale_ui), roundi(27 * scale_ui))
+		_layout_label(p1_score_label, Rect2(origin + Vector2(108, 5) * scale_ui,
+			Vector2(184, 51) * scale_ui), roundi(20 * scale_ui))
+		_layout_label(p2_score_label, Rect2(origin + Vector2(108, 66) * scale_ui,
+			Vector2(184, 51) * scale_ui), roundi(20 * scale_ui))
 		top_info_card.position = origin + Vector2(310, 5) * scale_ui
 		top_info_card.size = Vector2(435, 92) * scale_ui
 		_layout_label(turn_info_label, Rect2(origin + Vector2(326, 8) * scale_ui,
@@ -747,7 +799,7 @@ func _layout_hud(view_size: Vector2, landscape: bool) -> void:
 func _layout_menu(view_size: Vector2, landscape: bool) -> void:
 	menu_overlay.position = Vector2.ZERO
 	menu_overlay.size = view_size
-	var panel_ref := Vector2(980, 660) if landscape else Vector2(860, 700)
+	var panel_ref := Vector2(980, 790) if landscape else Vector2(860, 820)
 	var panel_scale := minf((view_size.x - 32) / panel_ref.x,
 		(view_size.y - 32) / panel_ref.y)
 	panel_scale = maxf(panel_scale, 0.35)
@@ -772,13 +824,24 @@ func _layout_menu(view_size: Vector2, landscape: bool) -> void:
 	moves_up_button.size = Vector2(100, 78) * panel_scale
 	moves_down_button.add_theme_font_size_override("font_size", roundi(36 * panel_scale))
 	moves_up_button.add_theme_font_size_override("font_size", roundi(36 * panel_scale))
-	professional_button.position = Vector2(100, 382) * panel_scale
+	var score_row_y := 366.0
+	score_target_label.position = Vector2((panel_ref.x - 360) * 0.5, score_row_y) * panel_scale
+	score_target_label.size = Vector2(360, 64) * panel_scale
+	score_target_label.add_theme_font_size_override("font_size", roundi(25 * panel_scale))
+	score_down_button.position = Vector2((panel_ref.x - 560) * 0.5, score_row_y - 2) * panel_scale
+	score_down_button.size = Vector2(100, 68) * panel_scale
+	score_up_button.position = Vector2(panel_ref.x - (panel_ref.x - 560) * 0.5 - 100,
+		score_row_y - 2) * panel_scale
+	score_up_button.size = Vector2(100, 68) * panel_scale
+	score_down_button.add_theme_font_size_override("font_size", roundi(32 * panel_scale))
+	score_up_button.add_theme_font_size_override("font_size", roundi(32 * panel_scale))
+	professional_button.position = Vector2(100, 464) * panel_scale
 	professional_button.size = Vector2(panel_ref.x - 200, 64) * panel_scale
 	professional_button.add_theme_font_size_override("font_size", roundi(20 * panel_scale))
 	professional_button.text = "حرفه‌ای: روشن (سوایپ جلو · گل از حرکت ۳)" \
 		if professional_mode else "حرفه‌ای: خاموش"
-	start_game_button.position = Vector2(72, panel_ref.y - 124) * panel_scale
-	start_game_button.size = Vector2(panel_ref.x - 144, 82) * panel_scale
+	start_game_button.position = Vector2(72, panel_ref.y - 108) * panel_scale
+	start_game_button.size = Vector2(panel_ref.x - 144, 74) * panel_scale
 	start_game_button.add_theme_font_size_override("font_size", roundi(25 * panel_scale))
 	menu_title.text = "سه‌توپ"
 	_update_move_count_label()
@@ -810,17 +873,40 @@ func _layout_tutorial(view_size: Vector2, landscape: bool) -> void:
 func _minimum_configured_moves() -> int:
 	return PROFESSIONAL_MIN_MOVES if professional_mode else MIN_MOVES_PER_TURN
 
+func _load_winning_score() -> void:
+	var settings := ConfigFile.new()
+	if settings.load(USER_SETTINGS_PATH) == OK:
+		winning_score = clampi(settings.get_value("game", "winning_score", DEFAULT_WINNING_SCORE),
+			MIN_WINNING_SCORE, MAX_WINNING_SCORE)
+
+func _save_winning_score() -> void:
+	var settings := ConfigFile.new()
+	settings.load(USER_SETTINGS_PATH)
+	settings.set_value("game", "winning_score", winning_score)
+	settings.save(USER_SETTINGS_PATH)
+
 func _update_move_count_label() -> void:
 	if move_count_label != null:
 		move_count_label.text = "تعداد حرکت مجاز: %s" % _fa(configured_moves)
+	if score_target_label != null:
+		score_target_label.text = "هدف قهرمانی: %s گل" % _fa(winning_score)
 	if moves_down_button != null:
 		moves_down_button.disabled = configured_moves <= _minimum_configured_moves()
 	if moves_up_button != null:
 		moves_up_button.disabled = configured_moves >= MAX_MOVES_PER_TURN
+	if score_down_button != null:
+		score_down_button.disabled = winning_score <= MIN_WINNING_SCORE
+	if score_up_button != null:
+		score_up_button.disabled = winning_score >= MAX_WINNING_SCORE
 
 func _change_configured_moves(amount: int) -> void:
 	configured_moves = clampi(configured_moves + amount,
 		_minimum_configured_moves(), MAX_MOVES_PER_TURN)
+	_update_move_count_label()
+
+func _change_winning_score(amount: int) -> void:
+	winning_score = clampi(winning_score + amount, MIN_WINNING_SCORE, MAX_WINNING_SCORE)
+	_save_winning_score()
 	_update_move_count_label()
 
 func _show_main_menu() -> void:
@@ -1038,7 +1124,30 @@ func _start_turn(player_idx: int) -> void:
 func _switch_turn() -> void:
 	_start_turn(2 if current_player == 1 else 1)
 
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_WM_GO_BACK_REQUEST:
+		_handle_back_request()
+
+func _handle_back_request() -> void:
+	if exit_confirmation != null and exit_confirmation.visible:
+		return
+	if tutorial_overlay != null and tutorial_overlay.visible:
+		tutorial_overlay.visible = false
+		menu_overlay.visible = true
+		state = GameState.MENU
+	elif state != GameState.MENU:
+		_show_main_menu()
+	elif exit_confirmation != null:
+		exit_confirmation.popup_centered()
+
+func _on_exit_confirmed() -> void:
+	get_tree().quit()
+
 func _input(event: InputEvent) -> void:
+	if event is InputEventKey and event.is_action_pressed("ui_cancel"):
+		_handle_back_request()
+		get_viewport().set_input_as_handled()
+		return
 	# تا وقتی سیستم لمسی را به ماوس تبدیل نکرده، کلیک ماوس هم پذیرفته می‌شود
 	var pointing := event is InputEventScreenTouch or event is InputEventMouseButton \
 		or event is InputEventScreenDrag or event is InputEventMouseMotion
@@ -1380,7 +1489,7 @@ func _finish_shot(kind: ShotKind, foul_reason: String = "") -> void:
 			_trigger_shake(14.0)
 			_play_sfx(440.0, 900.0, 0.24)
 			_update_hud()
-			if scores[current_player - 1] >= WINNING_SCORE:
+			if scores[current_player - 1] >= winning_score:
 				state = GameState.MATCH_OVER
 				status_label.text = "بازیکن %s برنده شد!" % _fa(current_player)
 				_show_banner("قهرمان: بازیکن %s" % _fa(current_player), Color(0.3, 1.0, 0.5))
@@ -1433,8 +1542,8 @@ func _update_hud() -> void:
 	var mark2 := "▶ " if current_player == 2 else "   "
 	p1_score_label.text = "%sبازیکن ۱" % mark1
 	p2_score_label.text = "%sبازیکن ۲" % mark2
-	p1_score_value.text = _fa(scores[0])
-	p2_score_value.text = _fa(scores[1])
+	p1_score_value.text = "%s/%s" % [_fa(scores[0]), _fa(winning_score)]
+	p2_score_value.text = "%s/%s" % [_fa(scores[1]), _fa(winning_score)]
 
 	var gate_txt := "آزاد" if gate_open else "مسدود"
 	turn_info_label.text = "نوبت %s | حرکت %s/%s | مسیر %s" % [

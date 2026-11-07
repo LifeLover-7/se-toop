@@ -47,7 +47,7 @@ jobs:
           export/android/java_sdk_path = "$JAVA_HOME"
           EOF
 
-      - name: Run native Godot pass-gap smoke test
+      - name: Run native Godot gameplay smoke tests
         run: |
           set +e
           godot --headless --path . --script ci/native_pass_smoke.gd 2>&1 | tee /tmp/godot-smoke.log
