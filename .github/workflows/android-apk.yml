@@ -59,7 +59,10 @@ jobs:
             if [ "$result" -ne 0 ]; then
               echo "::error::Godot command failed (exit $result): $*"
               encoded_log=$(gzip -c /tmp/godot-export.log | base64 -w0)
-              echo "::error::GODOT_LOG_GZIP_B64=$encoded_log"
+              for ((offset=0; offset<${#encoded_log}; offset+=1800)); do
+                part=${encoded_log:offset:1800}
+                echo "::error::GODOT_LOG_PART_$((offset/1800))=$part"
+              done
               exit "$result"
             fi
           }
