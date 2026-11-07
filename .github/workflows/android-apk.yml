@@ -68,9 +68,19 @@ jobs:
           file artifacts/SeToop-Android-debug.apk
 
       - name: Upload APK for testing
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: SeToop-Android-debug
           path: artifacts/SeToop-Android-debug.apk
           if-no-files-found: error
           retention-days: 14
+
+      - name: Upload export log for diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Android-export-log
+          path: /tmp/godot-export.log
+          if-no-files-found: warn
+          retention-days: 3
