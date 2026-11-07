@@ -1,0 +1,62 @@
+name: Android test APK
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  android-apk:
+    name: Export native Godot APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v4
+        with:
+          packages: 'platform-tools platforms;android-36 build-tools;36.0.0'
+
+      - name: Set up Godot 4.7.2 and Android export templates
+        uses: chickensoft-games/setup-godot@v2
+        with:
+          version: 4.7.2
+          use-dotnet: false
+          include-templates: true
+
+      - name: Configure Godot Android export paths
+        run: |
+          sdk_path="${ANDROID_SDK_ROOT:-$ANDROID_HOME}"
+          mkdir -p "$HOME/.config/godot"
+          cat > "$HOME/.config/godot/editor_settings-4.tres" <<EOF
+          [gd_resource type="EditorSettings" format=3]
+          [resource]
+          export/android/android_sdk_path = "$sdk_path"
+          export/android/java_sdk_path = "$JAVA_HOME"
+          EOF
+
+      - name: Export native Android debug APK
+        run: |
+          mkdir -p artifacts
+          cp ci/export_presets.android.cfg export_presets.cfg
+          godot --headless --path . --import
+          godot --headless --path . --export-debug "Android APK" artifacts/SeToop-Android-debug.apk
+          test -s artifacts/SeToop-Android-debug.apk
+          file artifacts/SeToop-Android-debug.apk
+
+      - name: Upload APK for testing
+        uses: actions/upload-artifact@v4
+        with:
+          name: SeToop-Android-debug
+          path: artifacts/SeToop-Android-debug.apk
+          if-no-files-found: error
+          retention-days: 14
