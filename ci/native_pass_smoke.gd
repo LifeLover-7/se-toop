@@ -43,8 +43,11 @@ func _run() -> void:
 			break
 
 	if game.shot_collided or game.state != WAITING_FOR_INPUT or game.moves_left != 2:
-		var failure := "Pass gap smoke test failed. State: %s, moves: %s, collided: %s" \
-			% [game.state, game.moves_left, game.shot_collided]
+		var failure := (
+			"Pass gap test failed. State %s, moves %s, collided %s; "
+			+ "status: %s, crossed: %s, ball: %s"
+		) % [game.state, game.moves_left, game.shot_collided,
+			game.status_label.text, game.gap_crossed, game.active_ball.global_position]
 		push_error(failure)
 		quit(1)
 		return
