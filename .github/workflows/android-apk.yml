@@ -61,7 +61,6 @@ jobs:
               exit "$result"
             fi
           }
-          run_godot godot --headless --path . --import
           run_godot godot --headless --path . --export-debug "Android APK" artifacts/SeToop-Android-debug.apk
           test -s artifacts/SeToop-Android-debug.apk
           file artifacts/SeToop-Android-debug.apk
