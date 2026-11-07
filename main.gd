@@ -1,17 +1,5 @@
 extends Node2D
-## سه‌توپ — نسخهٔ آرکید دو‌نفره (Phase 2.4)
-##
-## ارتقاها نسبت به Phase 2:
-##  • رفع باگ مسدودکننده: شوتی که فقط بازکنندهٔ دروازه است دیگر «سوختی» اعلام نمی‌شود.
-##  • بازطراحی تعادل: هندسه و فیزیک طوری تنظیم شد که «شوت طلایی» (پاس + باز کردن دروازه
-##    در یک شوت) وجود داشته باشد؛ پیش‌تر از نظر ریاضی غیرممکن بود.
-##  • دروازه‌ها AnimatableBody2D شدند تا برخوردشان با انیمیشن جابه‌جا شود.
-##  • لرزش دوربین با Camera2D (فیزیک دست‌نخورده می‌ماند).
-##  • فونت فارسی با fallback سیستمی + چک خودکار پوشش حروف.
-##  • صف صدا (پخش هم‌زمان افکت‌ها روی یک AudioStreamPlayer کار نمی‌کرد).
-##  • راهنمای گرادیانی پیش‌بینی مسیر (با احتساب میرایی) روی میز.
-##  • HUD واکنش‌گرا + جلوگیری از خطای چیدمان راست‌به‌چپ در Label.
-##  • رویه/بافت میز از نو نوشته شد؛ همهٔ آیتم‌های تمیزکاری‌شده.
+## سه‌توپ — بازی آرکید دونفره با Godot 4.7
 
 enum GameState { MENU, TURN_SETUP, WAITING_FOR_INPUT, BALLS_MOVING, TRANSITION, MATCH_OVER }
 enum ShotKind { NONE, PASS, OPENER, GOAL, FOUL }
@@ -21,6 +9,7 @@ const TABLE_RECT := Rect2(60, 218, 960, 1542)
 const WALL_THICKNESS := 24.0
 const GOAL_RECT := Rect2(390, 140, 300, 78)
 const BALL_RADIUS := 36.0
+const MIN_SPAWN_CENTER_DISTANCE := 200.0
 const MAX_DRAG_DIST := 320.0
 const MIN_SHOT_DRAG_DIST := 24.0
 const PRO_MIN_SWIPE_SPEED := 120.0
@@ -167,7 +156,6 @@ func _setup_camera() -> void:
 	main_camera.name = "ShakeCamera"
 	main_camera.anchor_mode = Camera2D.ANCHOR_MODE_DRAG_CENTER
 	main_camera.position = camera_center
-	# اندازه و چرخش دوربین با نسبت واقعی پنجره تنظیم می‌شود.
 	add_child(main_camera)
 	main_camera.make_current()
 	get_viewport().size_changed.connect(_refresh_layout)
@@ -321,11 +309,9 @@ func _build_walls() -> void:
 	var mouth_l := GOAL_RECT.position.x
 	var mouth_r := GOAL_RECT.end.x
 
-	# چپ، راست، پایین
 	_add_wall(Vector2(left - t * 0.5, (top + bottom) * 0.5), Vector2(t, bottom - top + t * 2.0))
 	_add_wall(Vector2(right + t * 0.5, (top + bottom) * 0.5), Vector2(t, bottom - top + t * 2.0))
 	_add_wall(Vector2((left + right) * 0.5, bottom + t * 0.5), Vector2(right - left + t * 2.0, t))
-	# بالای میز، دو طرف دهانهٔ دروازه
 	_add_wall(Vector2((left + mouth_l) * 0.5, top - t * 0.5), Vector2(mouth_l - left + t, t))
 	_add_wall(Vector2((mouth_r + right) * 0.5, top - t * 0.5), Vector2(right - mouth_r + t, t))
 
@@ -1131,7 +1117,6 @@ func _update_drag(pos: Vector2) -> void:
 	aim_line.default_color = color
 	aim_tip.visible = true
 	aim_tip.color = color
-	# پیش‌نمایش مسیر: از مرکز توپ شروع و به اندازهٔ کشش کشیده می‌شود
 	aim_line.points = PackedVector2Array([
 		drag_ball.global_position,
 		drag_ball.global_position + pull
@@ -1230,6 +1215,26 @@ func _process(delta: float) -> void:
 func _trigger_shake(amount: float) -> void:
 	shake_strength = maxf(shake_strength, amount)
 
+func _ensure_setup_ball_spacing() -> void:
+	for _iteration in range(24):
+		var adjusted := false
+		for i in range(balls.size()):
+			for j in range(i + 1, balls.size()):
+				var delta := balls[j].global_position - balls[i].global_position
+				var distance := delta.length()
+				if distance >= MIN_SPAWN_CENTER_DISTANCE:
+					continue
+				var direction := delta / distance if distance > 0.001 else Vector2.RIGHT
+				var offset := direction * (MIN_SPAWN_CENTER_DISTANCE - distance) * 0.51
+				balls[i].global_position -= offset
+				balls[j].global_position += offset
+				adjusted = true
+		if not adjusted:
+			break
+	for ball in balls:
+		PhysicsServer2D.body_set_state(
+			ball.get_rid(), PhysicsServer2D.BODY_STATE_TRANSFORM, ball.global_transform)
+
 func _physics_process(_delta: float) -> void:
 	if state == GameState.TURN_SETUP:
 		var setup_stopped := true
@@ -1241,6 +1246,8 @@ func _physics_process(_delta: float) -> void:
 			for b in balls:
 				b.linear_velocity = Vector2.ZERO
 				b.angular_velocity = 0.0
+			_ensure_setup_ball_spacing()
+			for b in balls:
 				b.sleeping = true
 			state = GameState.WAITING_FOR_INPUT
 			status_label.text = ""
