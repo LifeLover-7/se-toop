@@ -83,6 +83,7 @@ var gate_led_right: ColorRect
 var gate_open := false
 var gap_crossed := false
 var shot_collided := false
+var shot_physics_frames := 0
 var pass_line_a := Vector2.ZERO
 var pass_line_b := Vector2.ZERO
 var pass_line_valid := false
@@ -1176,6 +1177,7 @@ func _shoot_ball(ball: RigidBody2D, impulse: Vector2) -> void:
 	shot_origin = ball.global_position
 	gap_crossed = false
 	shot_collided = false
+	shot_physics_frames = 0
 
 	other_balls.clear()
 	for b in balls:
@@ -1254,6 +1256,14 @@ func _physics_process(_delta: float) -> void:
 			_update_hud()
 		return
 	if state != GameState.BALLS_MOVING or active_ball == null:
+		return
+
+	# apply_central_impulse is integrated after this frame's script callbacks.
+	# Ignore the pre-integration zero velocities so every shot is not judged
+	# as a stationary foul before the physics server applies its impulse.
+	shot_physics_frames += 1
+	if shot_physics_frames == 1:
+		prev_active_pos = active_ball.global_position
 		return
 
 	if shot_collided:
