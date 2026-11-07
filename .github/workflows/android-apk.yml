@@ -16,10 +16,10 @@ jobs:
     timeout-minutes: 45
     steps:
       - name: Check out source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Java
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
@@ -51,8 +51,18 @@ jobs:
         run: |
           mkdir -p artifacts
           cp ci/export_presets.android.cfg export_presets.cfg
-          godot --headless --path . --import
-          godot --headless --path . --export-debug "Android APK" artifacts/SeToop-Android-debug.apk
+          run_godot() {
+            set +e
+            "$@" 2>&1 | tee /tmp/godot-export.log
+            result=${PIPESTATUS[0]}
+            set -e
+            if [ "$result" -ne 0 ]; then
+              while IFS= read -r line; do echo "::error::$line"; done < <(tail -n 25 /tmp/godot-export.log)
+              exit "$result"
+            fi
+          }
+          run_godot godot --headless --path . --import
+          run_godot godot --headless --path . --export-debug "Android APK" artifacts/SeToop-Android-debug.apk
           test -s artifacts/SeToop-Android-debug.apk
           file artifacts/SeToop-Android-debug.apk
 
