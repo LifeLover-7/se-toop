@@ -53,7 +53,7 @@ cd preview && python3 -m http.server 8080 --bind 0.0.0.0
 
 ## بیلد اندروید برای تست
 
-این خروجی APK واقعیِ Godot است، نه صفحهٔ وب یا WebView. از GitHub به بخش **Actions → Android test APK → Run workflow** بروید و شاخهٔ `arena/715dea8b-se-toop` را انتخاب کنید؛ پس از پایان کار، artifact با نام `SeToop-Android-debug` را دانلود و روی گوشی نصب کنید. خروجی برای Androidهای arm64 و تست دستی است و با کلید debug امضا می‌شود؛ برای انتشار در فروشگاه باید بیلد release و امضای مخصوص ساخت.
+این خروجی APK واقعیِ Godot است، نه صفحهٔ وب یا WebView. با هر push به شاخهٔ `arena/715dea8b-se-toop`، workflow ساخت اندروید اجرا می‌شود؛ پس از پایان، از **Actions → Android test APK**، artifact با نام `SeToop-Android-debug` را دانلود و روی گوشی نصب کنید. خروجی برای Androidهای arm64 و تست دستی است و با کلید debug امضا می‌شود؛ برای انتشار در فروشگاه باید بیلد release و امضای مخصوص ساخت.
 
 ## تاریخچهٔ نسخه‌ها
 

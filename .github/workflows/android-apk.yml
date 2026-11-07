@@ -1,6 +1,9 @@
 name: Android test APK
 
 on:
+  push:
+    branches:
+      - arena/715dea8b-se-toop
   workflow_dispatch:
 
 permissions:
