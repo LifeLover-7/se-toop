@@ -48,7 +48,19 @@ jobs:
           EOF
 
       - name: Run native Godot pass-gap smoke test
-        run: godot --headless --path . --script ci/native_pass_smoke.gd
+        run: |
+          set +e
+          godot --headless --path . --script ci/native_pass_smoke.gd 2>&1 | tee /tmp/godot-smoke.log
+          result=${PIPESTATUS[0]}
+          set -e
+          if [ "$result" -ne 0 ]; then
+            encoded_log=$(gzip -c /tmp/godot-smoke.log | base64 -w0)
+            for ((offset=0; offset<${#encoded_log}; offset+=1800)); do
+              part=${encoded_log:offset:1800}
+              echo "::error::GODOT_SMOKE_LOG_PART_$((offset/1800))=$part"
+            done
+            exit "$result"
+          fi
 
       - name: Export native Android debug APK
         run: |
