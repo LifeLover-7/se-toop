@@ -158,7 +158,7 @@ const fa=n=>String(n).split("").map(c=>FA[+c]??c).join("");
 const ST = {MENU:0, SETUP:1, WAIT:2, MOVING:3, TRANS:4, OVER:5};
 let state = ST.MENU;
 let balls = [];
-let activeBall = null, otherBalls = [], prevActive = {x:0,y:0}, shotOrigin = {x:0,y:0};
+let activeBall = null, otherBalls = [], prevActive = {x:0,y:0};
 let gapCrossed = false, gateOpen = false, shotCollided = false;
 let passLineA=null, passLineB=null;
 let gateAnim = {l:390, r:540, lt:390, rt:540};
@@ -281,7 +281,6 @@ function burst(x,y,n,color,life,vmin,vmax){
 // ------------------------------ شوت
 function shoot(ball, impulse){
   state = ST.MOVING;
-  shotOrigin = {...ball.p};
   prevActive = {...ball.p};
   gapCrossed = false;
   otherBalls = balls.filter(b=>b!==ball);
@@ -373,8 +372,7 @@ function checkShot(){
   }
   // گل فقط با پاس معتبر و عبور کامل توپ از خط ورودی دروازه ثبت می‌شود.
   if(act.y+R <= GOAL.y+GOAL.h+6 && act.x-R>=GOAL.x && act.x+R<=GOAL.x+GOAL.w && gapOpenAt(act)){
-    const crossed=gapCrossed || !!(passLineA && passLineB && segInt(shotOrigin,act,passLineA,passLineB));
-    if(!crossed){
+    if(!gapCrossed){
       finish("FOUL","توپ باید از شکاف بین دو توپ عبور کند؛ نوبت سوخت.");
     } else if(professionalMode && currentTurnMoveNumber()<PROFESSIONAL_MIN_MOVES){
       finish("FOUL","در حالت حرفه‌ای، گل از حرکت سوم به بعد مجاز است؛ نوبت سوخت.");
@@ -397,9 +395,7 @@ function checkShot(){
 function judgeShot(){
   if(!activeBall) return;
   if(shotCollided) return finish("FOUL","برخورد با توپ دیگر! نوبت سوخت.");
-  const act = activeBall.p;
-  const crossed = gapCrossed || !!(passLineA && passLineB && segInt(shotOrigin,act,passLineA,passLineB));
-  if(!crossed) return finish("FOUL","توپ باید از شکاف بین دو توپ عبور کند؛ نوبت سوخت.");
+  if(!gapCrossed) return finish("FOUL","توپ باید از شکاف بین دو توپ عبور کند؛ نوبت سوخت.");
   if(balls.some(b=>b.p.y < ATTACK_Y)) setGate(true);
   return finish("PASS");
 }
@@ -774,6 +770,21 @@ function drawScoreCard(x,y,w,h,name,score,color,active,small=false){
   ctx.restore();
 }
 
+function drawHudText(text,rightX,y,maxWidth,size,color,weight=600){
+  let fontSize=size;
+  ctx.font=`${weight} ${fontSize}px Vazirmatn,Tahoma,sans-serif`;
+  while(fontSize>14 && ctx.measureText(text).width>maxWidth){
+    fontSize--;
+    ctx.font=`${weight} ${fontSize}px Vazirmatn,Tahoma,sans-serif`;
+  }
+  ctx.save();
+  ctx.beginPath();ctx.rect(rightX-maxWidth,y-22,maxWidth,44);ctx.clip();
+  ctx.textAlign="right";ctx.textBaseline="middle";ctx.fillStyle=color;
+  ctx.font=`${weight} ${fontSize}px Vazirmatn,Tahoma,sans-serif`;
+  ctx.fillText(text,rightX,y);
+  ctx.restore();
+}
+
 function drawHud(){
   ctx.save();
   ctx.setTransform(dpr*scale,0,0,dpr*scale,ox*dpr,oy*dpr);
@@ -783,10 +794,8 @@ function drawHud(){
   drawScoreCard(15,7,282,51,"بازیکن ۱",scores[0],"#73c8ff",player===1);
   drawScoreCard(15,68,282,51,"بازیکن ۲",scores[1],"#ff8585",player===2);
 
-  ctx.textAlign="right"; ctx.fillStyle="#f2f2f2"; ctx.font="600 26px Vazirmatn,Tahoma,sans-serif";
-  ctx.fillText(turnText,740,34);
-  ctx.fillStyle="#d1c8b8"; ctx.font="600 22px Vazirmatn,Tahoma,sans-serif";
-  ctx.fillText(statusText,740,76);
+  drawHudText(turnText,740,34,425,26,"#f2f2f2");
+  drawHudText(statusText,740,76,425,22,"#d1c8b8");
   if(!professionalMode){
     ctx.fillStyle="rgba(255,255,255,0.12)"; rr(315,101,270,10,5); ctx.fill();
     if(gateOpen){ctx.fillStyle="#70edaf";rr(315,101,270,10,5);ctx.fill();}
@@ -811,10 +820,8 @@ function drawHudLandscape(){
   ctx.fillStyle="rgba(10,13,17,0.96)";ctx.fillRect(0,0,1920,112);
   drawScoreCard(16,6,282,46,"بازیکن ۱",scores[0],"#73c8ff",player===1,true);
   drawScoreCard(16,60,282,46,"بازیکن ۲",scores[1],"#ff8585",player===2,true);
-  ctx.textAlign="right";ctx.font="25px Vazirmatn,Tahoma,sans-serif";ctx.fillStyle="#f2f2f2";
-  ctx.fillText(turnText,1360,30);
-  ctx.font="21px Vazirmatn,Tahoma,sans-serif";ctx.fillStyle="#d1c8b8";
-  ctx.fillText(statusText,1360,73);
+  drawHudText(turnText,1650,30,1335,25,"#f2f2f2");
+  drawHudText(statusText,1650,73,1335,21,"#d1c8b8");
   if(!professionalMode){
     ctx.fillStyle="rgba(255,255,255,0.12)";rr(820,96,250,9,4);ctx.fill();
     if(gateOpen){ctx.fillStyle="#70edaf";rr(820,96,250,9,4);ctx.fill();}

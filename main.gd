@@ -91,6 +91,7 @@ var hud_root: Control
 var top_bar: ColorRect
 var menu_overlay: ColorRect
 var menu_panel: Panel
+var menu_row_panels: Array[Panel] = []
 var score_card_p1: Panel
 var score_card_p2: Panel
 var top_info_card: Panel
@@ -536,7 +537,9 @@ func _build_hud() -> void:
 	p2_score_value = _label(hud_root, Vector2.ZERO, 34, Color.WHITE)
 	p2_score_value.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	turn_info_label = _label(hud_root, Vector2.ZERO, 25, Color(0.98, 0.96, 0.90))
+	turn_info_label.clip_text = true
 	status_label = _label(hud_root, Vector2.ZERO, 22, Color(1.0, 0.90, 0.56))
+	status_label.clip_text = true
 
 	goal_meter_bg = ColorRect.new()
 	goal_meter_bg.color = Color(1, 1, 1, 0.16)
@@ -596,8 +599,16 @@ func _build_hud() -> void:
 	menu_hint.text = "دوئل کاغذی؛ سه توپ، یک قهرمان"
 	menu_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	menu_emblem = _label(menu_panel, Vector2.ZERO, 38, Color(0.96, 0.89, 0.72))
-	menu_emblem.text = "●   ●   ●"
+	menu_emblem.text = "●  ─  ●  ─  ●"
 	menu_emblem.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	menu_row_panels.clear()
+	for _row_index in range(2):
+		var row_panel := Panel.new()
+		row_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		row_panel.add_theme_stylebox_override("panel", _panel_style(
+			Color(0.035, 0.045, 0.055, 0.72), Color(0.88, 0.70, 0.40, 0.20), 20))
+		menu_panel.add_child(row_panel)
+		menu_row_panels.append(row_panel)
 	menu_accent = ColorRect.new()
 	menu_accent.color = Color(0.92, 0.64, 0.28, 0.9)
 	menu_accent.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -738,9 +749,9 @@ func _layout_hud(view_size: Vector2, landscape: bool) -> void:
 		top_info_card.position = origin + Vector2(315, 5) * scale_ui
 		top_info_card.size = Vector2(650, 102) * scale_ui
 		_layout_label(turn_info_label, Rect2(origin + Vector2(335, 7) * scale_ui,
-			Vector2(590, 42) * scale_ui), roundi(26 * scale_ui))
+			Vector2(590, 42) * scale_ui), roundi(22 * scale_ui))
 		_layout_label(status_label, Rect2(origin + Vector2(335, 50) * scale_ui,
-			Vector2(600, 36) * scale_ui), roundi(21 * scale_ui))
+			Vector2(600, 36) * scale_ui), roundi(18 * scale_ui))
 		goal_meter_bg.position = origin + Vector2(330, 96) * scale_ui
 		goal_meter_bg.size = Vector2(250, 9) * scale_ui
 		menu_button.position = origin + Vector2(1760, 13) * scale_ui
@@ -765,9 +776,9 @@ func _layout_hud(view_size: Vector2, landscape: bool) -> void:
 		top_info_card.position = origin + Vector2(310, 5) * scale_ui
 		top_info_card.size = Vector2(435, 92) * scale_ui
 		_layout_label(turn_info_label, Rect2(origin + Vector2(326, 8) * scale_ui,
-			Vector2(405, 41) * scale_ui), roundi(24 * scale_ui))
+			Vector2(405, 41) * scale_ui), roundi(20 * scale_ui))
 		_layout_label(status_label, Rect2(origin + Vector2(326, 49) * scale_ui,
-			Vector2(405, 38) * scale_ui), roundi(21 * scale_ui))
+			Vector2(405, 38) * scale_ui), roundi(17 * scale_ui))
 		goal_meter_bg.position = origin + Vector2(315, 101) * scale_ui
 		goal_meter_bg.size = Vector2(240, 9) * scale_ui
 		menu_button.position = origin + Vector2(968, 18) * scale_ui
@@ -801,6 +812,10 @@ func _layout_menu(view_size: Vector2, landscape: bool) -> void:
 		Vector2(panel_ref.x - 72, 56) * panel_scale), roundi(38 * panel_scale))
 	menu_accent.position = Vector2(110, 236) * panel_scale
 	menu_accent.size = Vector2(panel_ref.x - 220, 3) * panel_scale
+	menu_row_panels[0].position = Vector2(80, 258) * panel_scale
+	menu_row_panels[0].size = Vector2(panel_ref.x - 160, 94) * panel_scale
+	menu_row_panels[1].position = Vector2(80, 358) * panel_scale
+	menu_row_panels[1].size = Vector2(panel_ref.x - 160, 82) * panel_scale
 	_layout_label(move_count_label, Rect2(Vector2((panel_ref.x - 420) * 0.5, 274) * panel_scale,
 		Vector2(420, 68) * panel_scale), roundi(30 * panel_scale))
 	moves_down_button.position = Vector2(150, 270) * panel_scale
@@ -1334,7 +1349,7 @@ func _physics_process(_delta: float) -> void:
 		and cur.x >= GOAL_RECT.position.x + BALL_RADIUS \
 		and cur.x <= GOAL_RECT.end.x - BALL_RADIUS \
 		and _is_gate_open_for(cur):
-		if not gap_crossed and not _passed_between():
+		if not gap_crossed:
 			_finish_shot(ShotKind.FOUL, "توپ باید از شکاف بین دو توپ عبور کند؛ نوبت سوخت.")
 		elif professional_mode and _current_turn_move_number() < PROFESSIONAL_MIN_MOVES:
 			_finish_shot(ShotKind.FOUL, "در حالت حرفه‌ای، گل از حرکت سوم به بعد مجاز است؛ نوبت سوخت.")
@@ -1379,8 +1394,7 @@ func _judge_shot() -> void:
 	if shot_collided:
 		_finish_shot(ShotKind.FOUL, "برخورد با توپ دیگر! نوبت سوخت.")
 		return
-	var crossed := gap_crossed or _passed_between()
-	if not crossed:
+	if not gap_crossed:
 		_finish_shot(ShotKind.FOUL, "توپ باید از شکاف بین دو توپ عبور کند؛ نوبت سوخت.")
 		return
 	var opened := false
@@ -1391,19 +1405,6 @@ func _judge_shot() -> void:
 	if opened:
 		_set_gate(true)
 	_finish_shot(ShotKind.PASS)
-
-## آیا مسیر توپ شوت‌شده از پاره‌خط بین دو توپ دیگر گذشته است؟
-func _passed_between() -> bool:
-	if active_ball == null or not pass_line_valid:
-		return false
-	if gap_crossed:
-		return true
-	var now_pos := active_ball.global_position
-	if Geometry2D.segment_intersects_segment(
-			shot_origin, now_pos, pass_line_a, pass_line_b) != null:
-		return true
-	return Geometry2D.segment_intersects_segment(
-			prev_active_pos, now_pos, pass_line_a, pass_line_b) != null
 
 func _finish_shot(kind: ShotKind, foul_reason: String = "") -> void:
 	match kind:

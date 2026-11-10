@@ -70,11 +70,11 @@ func _run() -> void:
 	game.pass_line_a = Vector2(440, 1100)
 	game.pass_line_b = Vector2(640, 1100)
 	game.shot_origin = Vector2(540, 1300)
-	game.active_ball.global_position = Vector2(540, 1350)
+	game.active_ball.global_position = Vector2(540, 900)
 	game.balls[0].global_position = Vector2(400, 900)
 	game._judge_shot()
 	if game.state != 4 or game.gate_open:
-		failures.append("A non-passing opener was not called a foul")
+		failures.append("A path-only false pass was accepted instead of fouled")
 	game.winning_score = 2
 	game.scores[0] = 1
 	game._update_hud()
