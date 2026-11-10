@@ -620,7 +620,7 @@ func _build_goal() -> void:
 		for i in range(8):
 			var x := GOAL_RECT.position.x + float(i) * 45.0
 			var diagonal := Line2D.new()
-			var end_x := x + direction * 80.0
+			var end_x: float = x + float(direction) * 80.0
 			diagonal.points = PackedVector2Array([
 				Vector2(x, GOAL_RECT.position.y), Vector2(end_x, GOAL_RECT.end.y)
 			])
@@ -1065,6 +1065,9 @@ func _layout_label(node: Control, rect: Rect2, font_size: int) -> void:
 	node.size = rect.size
 	node.add_theme_font_size_override("font_size", font_size)
 
+func _scaled_rect(rect: Rect2, factor: float) -> Rect2:
+	return Rect2(rect.position * factor, rect.size * factor)
+
 func _refresh_layout() -> void:
 	if get_viewport() == null:
 		return
@@ -1188,10 +1191,10 @@ func _layout_menu(view_size: Vector2, _landscape: bool) -> void:
 	var panel_size := panel_ref * panel_scale
 	menu_panel.position = (view_size - panel_size) * 0.5
 	menu_panel.size = panel_size
-	_layout_label(menu_kicker, Rect2(Vector2(36, 16), Vector2(panel_ref.x - 72, 28)) * panel_scale, roundi(15 * panel_scale))
-	_layout_label(menu_title, Rect2(Vector2(36, 40), Vector2(panel_ref.x - 72, 68)) * panel_scale, roundi(48 * panel_scale))
-	_layout_label(menu_hint, Rect2(Vector2(36, 108), Vector2(panel_ref.x - 72, 34)) * panel_scale, roundi(18 * panel_scale))
-	_layout_label(menu_emblem, Rect2(Vector2(36, 142), Vector2(panel_ref.x - 72, 46)) * panel_scale, roundi(32 * panel_scale))
+	_layout_label(menu_kicker, _scaled_rect(Rect2(Vector2(36, 16), Vector2(panel_ref.x - 72, 28)), panel_scale), roundi(15 * panel_scale))
+	_layout_label(menu_title, _scaled_rect(Rect2(Vector2(36, 40), Vector2(panel_ref.x - 72, 68)), panel_scale), roundi(48 * panel_scale))
+	_layout_label(menu_hint, _scaled_rect(Rect2(Vector2(36, 108), Vector2(panel_ref.x - 72, 34)), panel_scale), roundi(18 * panel_scale))
+	_layout_label(menu_emblem, _scaled_rect(Rect2(Vector2(36, 142), Vector2(panel_ref.x - 72, 46)), panel_scale), roundi(32 * panel_scale))
 	menu_accent.position = Vector2(72, 198) * panel_scale
 	menu_accent.size = Vector2(panel_ref.x - 144, 2) * panel_scale
 	var tab_width := (panel_ref.x - 176) / 3.0
@@ -1203,27 +1206,27 @@ func _layout_menu(view_size: Vector2, _landscape: bool) -> void:
 	menu_row_panels[0].size = Vector2(panel_ref.x - 152, 58) * panel_scale
 	menu_row_panels[1].position = Vector2(76, 342) * panel_scale
 	menu_row_panels[1].size = Vector2(panel_ref.x - 152, 58) * panel_scale
-	_layout_label(move_count_label, Rect2(Vector2((panel_ref.x - 470) * 0.5, 275), Vector2(470, 56)) * panel_scale, roundi(22 * panel_scale))
+	_layout_label(move_count_label, _scaled_rect(Rect2(Vector2((panel_ref.x - 470) * 0.5, 275), Vector2(470, 56)), panel_scale), roundi(22 * panel_scale))
 	moves_down_button.position = Vector2(98, 274) * panel_scale
 	moves_down_button.size = Vector2(88, 58) * panel_scale
 	moves_up_button.position = Vector2(panel_ref.x - 186, 274) * panel_scale
 	moves_up_button.size = Vector2(88, 58) * panel_scale
-	_layout_label(score_target_label, Rect2(Vector2((panel_ref.x - 360) * 0.5, 343), Vector2(360, 56)) * panel_scale, roundi(22 * panel_scale))
+	_layout_label(score_target_label, _scaled_rect(Rect2(Vector2((panel_ref.x - 360) * 0.5, 343), Vector2(360, 56)), panel_scale), roundi(22 * panel_scale))
 	score_down_button.position = Vector2(98, 342) * panel_scale
 	score_down_button.size = Vector2(88, 58) * panel_scale
 	score_up_button.position = Vector2(panel_ref.x - 186, 342) * panel_scale
 	score_up_button.size = Vector2(88, 58) * panel_scale
 	for control in [moves_down_button, moves_up_button, score_down_button, score_up_button]:
 		control.add_theme_font_size_override("font_size", roundi(30 * panel_scale))
-	_layout_label(vs_ai_button, Rect2(Vector2(86, 414), Vector2(panel_ref.x - 172, 54)) * panel_scale, roundi(18 * panel_scale))
-	_layout_label(ai_difficulty_button, Rect2(Vector2(86, 476), Vector2(panel_ref.x - 172, 54)) * panel_scale, roundi(18 * panel_scale))
-	_layout_label(professional_button, Rect2(Vector2(86, 544), Vector2(panel_ref.x - 172, 62)) * panel_scale, roundi(19 * panel_scale))
-	_layout_label(start_game_button, Rect2(Vector2(72, 626), Vector2(panel_ref.x - 144, 70)) * panel_scale, roundi(24 * panel_scale))
-	_layout_label(surface_cycle_button, Rect2(Vector2(86, 280), Vector2(panel_ref.x - 172, 58)) * panel_scale, roundi(18 * panel_scale))
-	_layout_label(net_style_button, Rect2(Vector2(86, 348), Vector2(panel_ref.x - 172, 58)) * panel_scale, roundi(18 * panel_scale))
-	_layout_label(music_style_button, Rect2(Vector2(86, 416), Vector2(panel_ref.x - 172, 58)) * panel_scale, roundi(18 * panel_scale))
-	_layout_label(tournament_kind_button, Rect2(Vector2(86, 280), Vector2(panel_ref.x - 172, 58)) * panel_scale, roundi(18 * panel_scale))
-	_layout_label(tournament_size_button, Rect2(Vector2(86, 348), Vector2(panel_ref.x - 172, 58)) * panel_scale, roundi(18 * panel_scale))
+	_layout_label(vs_ai_button, _scaled_rect(Rect2(Vector2(86, 414), Vector2(panel_ref.x - 172, 54)), panel_scale), roundi(18 * panel_scale))
+	_layout_label(ai_difficulty_button, _scaled_rect(Rect2(Vector2(86, 476), Vector2(panel_ref.x - 172, 54)), panel_scale), roundi(18 * panel_scale))
+	_layout_label(professional_button, _scaled_rect(Rect2(Vector2(86, 544), Vector2(panel_ref.x - 172, 62)), panel_scale), roundi(19 * panel_scale))
+	_layout_label(start_game_button, _scaled_rect(Rect2(Vector2(72, 626), Vector2(panel_ref.x - 144, 70)), panel_scale), roundi(24 * panel_scale))
+	_layout_label(surface_cycle_button, _scaled_rect(Rect2(Vector2(86, 280), Vector2(panel_ref.x - 172, 58)), panel_scale), roundi(18 * panel_scale))
+	_layout_label(net_style_button, _scaled_rect(Rect2(Vector2(86, 348), Vector2(panel_ref.x - 172, 58)), panel_scale), roundi(18 * panel_scale))
+	_layout_label(music_style_button, _scaled_rect(Rect2(Vector2(86, 416), Vector2(panel_ref.x - 172, 58)), panel_scale), roundi(18 * panel_scale))
+	_layout_label(tournament_kind_button, _scaled_rect(Rect2(Vector2(86, 280), Vector2(panel_ref.x - 172, 58)), panel_scale), roundi(18 * panel_scale))
+	_layout_label(tournament_size_button, _scaled_rect(Rect2(Vector2(86, 348), Vector2(panel_ref.x - 172, 58)), panel_scale), roundi(18 * panel_scale))
 	var team_gap := 12.0
 	var team_width := (panel_ref.x - 184 - team_gap) * 0.5
 	tournament_team1_button.position = Vector2(86, 416) * panel_scale
@@ -1232,7 +1235,7 @@ func _layout_menu(view_size: Vector2, _landscape: bool) -> void:
 	tournament_team2_button.size = tournament_team1_button.size
 	for control in [tournament_team1_button, tournament_team2_button]:
 		control.add_theme_font_size_override("font_size", roundi(16 * panel_scale))
-	_layout_label(tournament_start_button, Rect2(Vector2(86, 486), Vector2(panel_ref.x - 172, 70)) * panel_scale, roundi(19 * panel_scale))
+	_layout_label(tournament_start_button, _scaled_rect(Rect2(Vector2(86, 486), Vector2(panel_ref.x - 172, 70)), panel_scale), roundi(19 * panel_scale))
 	menu_title.text = "سه‌توپ"
 	_update_move_count_label()
 
@@ -1264,7 +1267,7 @@ func _minimum_configured_moves() -> int:
 	return MIN_MOVES_PER_TURN
 
 func _professional_move_cap() -> int:
-	var damping := SURFACE_DAMPING[selected_surface]
+	var damping: float = SURFACE_DAMPING[selected_surface]
 	if damping <= 1.5:
 		return 2
 	if damping >= 2.5:
@@ -1816,9 +1819,9 @@ func _queue_ai_turn() -> void:
 		through_direction = Vector2.UP
 	var target := midpoint + through_direction * 620.0
 	var aim := (target - best_ball.global_position).normalized()
-	var spread := [0.20, 0.09, 0.025][clampi(ai_difficulty - 1, 0, 2)]
+	var spread: float = [0.20, 0.09, 0.025][clampi(ai_difficulty - 1, 0, 2)]
 	aim = aim.rotated(randf_range(-spread, spread))
-	var power := [2050.0, 2700.0, 3150.0][clampi(ai_difficulty - 1, 0, 2)]
+	var power: float = [2050.0, 2700.0, 3150.0][clampi(ai_difficulty - 1, 0, 2)]
 	active_ball = best_ball
 	ai_turn_pending = false
 	_shoot_ball(best_ball, aim * power)
