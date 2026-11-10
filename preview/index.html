@@ -11,7 +11,19 @@
   canvas:active{cursor:grabbing}
   #menu,#tutorial{position:fixed;inset:0;z-index:5;display:grid;place-items:center;
     padding:18px;box-sizing:border-box;background:radial-gradient(ellipse at 50% 38%,rgba(161,98,34,.2),transparent 50%),rgba(5,7,10,.84);backdrop-filter:blur(9px)}
-  #menu.hidden,#tutorial.hidden{display:none}
+  #menu.hidden,#tutorial.hidden,#winner-screen.hidden{display:none}
+  #winner-screen{position:fixed;inset:0;z-index:8;display:grid;place-items:center;padding:20px;box-sizing:border-box;
+    background:radial-gradient(ellipse at 50% 40%,rgba(185,132,61,.18),transparent 58%),rgba(5,7,10,.78);backdrop-filter:blur(8px)}
+  .winner-card{width:min(500px,92vw);padding:36px 28px 28px;border:1px solid rgba(255,218,146,.42);border-radius:28px;text-align:center;color:#fff5e2;
+    background:radial-gradient(ellipse at 50% -10%,rgba(255,203,110,.18),transparent 55%),linear-gradient(145deg,#282f38,#15191e 68%,#251c13);
+    box-shadow:0 28px 90px rgba(0,0,0,.66),0 0 50px rgba(224,159,69,.12);animation:winner-pop .45s cubic-bezier(.2,.85,.25,1)}
+  .winner-cup{font-size:4rem;line-height:1.1;filter:drop-shadow(0 6px 18px rgba(255,205,90,.32))}
+  .winner-kicker{margin:8px 0;color:#d8b577;font-size:.85rem;letter-spacing:.12em;font-weight:800}
+  .winner-card h2{margin:5px 0 8px;color:#ffe1a0;font-size:clamp(2rem,8vw,3rem);text-shadow:0 3px 22px rgba(255,190,93,.18)}
+  .winner-card p{color:#d2c9bb;margin:8px 0 24px}
+  .winner-actions{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
+  .winner-actions button{min-width:145px}
+  @keyframes winner-pop{from{opacity:0;transform:translateY(15px) scale(.94)}to{opacity:1;transform:none}}
   .card{position:relative;isolation:isolate;width:min(580px,92vw);max-height:calc(100vh - 36px);overflow:auto;padding:34px 30px 30px;
     border:1px solid rgba(255,217,143,.34);border-radius:30px;
     background:radial-gradient(ellipse at 50% -10%,rgba(255,199,98,.13),transparent 52%),linear-gradient(145deg,#252c35,#15191e 62%,#231b13);
@@ -29,22 +41,17 @@
     border:1px solid rgba(255,255,255,.075);border-radius:18px;background:rgba(6,9,12,.4)}
   .move-row strong{min-width:220px;font-size:clamp(1.1rem,3.5vw,1.45rem);color:#f3ead9}
   .score-row{margin-top:-8px;border-color:rgba(232,182,94,.13);background:rgba(6,9,12,.27)}
-  .pro-toggle{position:relative;display:flex;align-items:center;justify-content:center;gap:14px;width:min(100%,430px);min-height:66px;
-    margin:0 auto 22px;padding:9px 16px;box-sizing:border-box;border:1px solid rgba(232,182,94,.28);border-radius:18px;
-    background:linear-gradient(135deg,rgba(42,50,57,.94),rgba(24,28,33,.96));cursor:pointer;text-align:right;
-    box-shadow:inset 0 1px rgba(255,255,255,.035),0 8px 20px rgba(0,0,0,.18);transition:border-color .2s,box-shadow .2s,background .2s}
-  .pro-toggle:hover{border-color:rgba(255,211,132,.58);box-shadow:0 0 22px rgba(232,182,94,.10)}
-  .pro-toggle input{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
-  .pro-switch{position:relative;flex:0 0 58px;width:58px;height:32px;border-radius:20px;border:1px solid rgba(255,255,255,.12);
-    background:linear-gradient(180deg,#101419,#252b31);box-shadow:inset 0 3px 7px rgba(0,0,0,.55);transition:background .2s,border-color .2s}
-  .pro-switch i{position:absolute;top:4px;left:4px;width:24px;height:24px;border-radius:50%;background:linear-gradient(145deg,#f2e6cf,#a9a49b);
-    box-shadow:0 3px 8px rgba(0,0,0,.42);transition:transform .22s cubic-bezier(.2,.8,.25,1),background .2s}
-  .pro-toggle input:checked + .pro-switch{background:linear-gradient(120deg,#bd843b,#e8bd6e);border-color:#ffda92;box-shadow:0 0 15px rgba(232,182,94,.28),inset 0 2px 5px rgba(0,0,0,.25)}
-  .pro-toggle input:checked + .pro-switch i{transform:translateX(25px);background:linear-gradient(145deg,#fff6e3,#f0d499)}
-  .pro-toggle input:focus-visible + .pro-switch{outline:3px solid #ffe4a7;outline-offset:4px}
-  .pro-copy{display:flex;flex-direction:column;gap:3px;color:#f5ead8}
-  .pro-copy strong{font-size:1.02rem;font-weight:700}
-  .pro-copy small{font-size:.78rem;color:#b7b2a9}
+  .pro-mode-button{display:flex;align-items:center;justify-content:center;gap:12px;width:min(100%,430px);min-height:68px;
+    margin:0 auto 16px;padding:10px 18px;box-sizing:border-box;border:1px solid rgba(255,214,139,.62);border-radius:18px;
+    color:#fff3d7;background:linear-gradient(125deg,#533719,#bd843b 52%,#e4b967);cursor:pointer;text-align:center;
+    box-shadow:0 10px 28px rgba(180,117,40,.22),inset 0 1px rgba(255,255,255,.28);transition:transform .16s,filter .18s,box-shadow .18s}
+  .pro-mode-button:hover{filter:brightness(1.1);box-shadow:0 12px 34px rgba(232,182,94,.3),inset 0 1px rgba(255,255,255,.34)}
+  .pro-mode-button:active{transform:translateY(1px) scale(.99)}
+  .pro-mode-button:focus-visible{outline:3px solid #ffe4a7;outline-offset:4px}
+  .pro-mode-button .mode-icon{font-size:1.6rem;text-shadow:0 2px 12px rgba(255,231,169,.45)}
+  .pro-mode-button .mode-copy{display:flex;flex-direction:column;gap:2px}
+  .pro-mode-button strong{font-size:1rem}
+  .pro-mode-button small{font-size:.74rem;color:#fff0d0}
   button{font:inherit;color:#21170f;border:1px solid rgba(255,228,177,.25);border-radius:14px;
     background:linear-gradient(180deg,#f0d39c,#c89a57);padding:12px 20px;min-height:48px;cursor:pointer;touch-action:manipulation;
     box-shadow:0 8px 20px rgba(0,0,0,.24);transition:transform .15s,filter .15s,box-shadow .15s}
@@ -54,6 +61,12 @@
   button:focus-visible{outline:3px solid #ffe4a7;outline-offset:3px}
   #move-minus,#move-plus,#score-minus,#score-plus{width:54px;padding:8px;font-size:1.5rem;border-radius:13px;background:linear-gradient(180deg,#333c47,#20262e);color:#f6e8cf}
   #start-game,#tutorial-continue{width:min(100%,430px);font-weight:800;color:#23170a;background:linear-gradient(180deg,#ffd789,#d79f4d);font-size:1.08rem}
+  .setup-select{display:flex;align-items:center;justify-content:space-between;gap:12px;width:min(100%,430px);margin:0 auto 9px;padding:8px 12px;box-sizing:border-box;
+    border:1px solid rgba(255,255,255,.09);border-radius:13px;background:rgba(6,9,12,.38);color:#d9d2c6;font-size:.86rem;text-align:right}
+  .setup-select select{max-width:68%;padding:7px 10px;border:1px solid rgba(232,182,94,.22);border-radius:10px;background:#20262d;color:#f6e8cf;font:inherit}
+  .team-picks{display:flex;gap:8px;width:min(100%,430px);margin:0 auto 10px}
+  .team-picks button{flex:1;min-width:0;padding:8px 5px;min-height:42px;font-size:.82rem;background:linear-gradient(180deg,#343d48,#20262e);color:#f6e8cf}
+  #tournament-start{width:min(100%,430px);margin:0 auto 14px;color:#f9efd8;background:linear-gradient(130deg,#173b51,#236b87 52%,#47a4b0);border-color:rgba(146,224,240,.45);font-weight:800}
   .note{font-size:.84rem!important;color:#9d9b98!important;margin:19px 0 0!important}
   .tutorial-diagram{margin:8px auto 20px;padding:12px 10px 6px;border:1px solid rgba(64,220,255,.2);border-radius:18px;background:rgba(10,22,28,.56)}
   .tutorial-diagram svg{display:block;width:100%;height:auto;max-height:105px}
@@ -80,13 +93,30 @@
       <strong id="score-target">هدف قهرمانی: ۳ گل</strong>
       <button id="score-plus" aria-label="زیاد کردن گل لازم برای برد">+</button>
     </div>
-    <label class="pro-toggle">
-      <input id="professional-mode" type="checkbox" aria-label="حالت حرفه‌ای">
-      <span class="pro-switch" aria-hidden="true"><i></i></span>
-      <span class="pro-copy"><strong>حالت حرفه‌ای</strong><small id="pro-hint">خطوط راهنما روشن می‌مانند</small></span>
-    </label>
+    <label class="setup-select"><span>جنس زمین</span><select id="surface-select">
+      <option value="grass">چمن</option><option value="indoor">سالن</option><option value="asphalt">آسفالت</option>
+      <option value="table">میز چوبی</option><option value="glass">شیشه</option><option value="rug">فرش</option><option value="carpet">موکت</option>
+    </select></label>
+    <label class="setup-select"><span>جام مسابقات</span><select id="tournament-kind">
+      <option value="national">جام ملت‌ها</option><option value="club">جام باشگاه‌ها</option>
+    </select></label>
+    <div class="team-picks"><button id="team1-cycle" type="button">تیم آبی: ایران</button><button id="team2-cycle" type="button">تیم قرمز: ژاپن</button></div>
+    <button id="tournament-start" type="button">🏆 شروع جام حذفی دونفره · بهترین از ۳ بازی</button>
+    <button id="professional-mode" class="pro-mode-button" type="button" aria-label="شروع بازی حرفه‌ای">
+      <span class="mode-icon" aria-hidden="true">✦</span>
+      <span class="mode-copy"><strong>ورود به میدان حرفه‌ای</strong><small>۳ حرکت حداقل · قدرت با فشار و فلیک</small></span>
+    </button>
     <button id="start-game">شروع بازی</button>
     <p class="note">در صفحهٔ افقی، میز خودکار می‌چرخد.</p>
+  </section>
+</div>
+<div id="winner-screen" class="hidden" role="dialog" aria-modal="true" aria-labelledby="winner-name">
+  <section class="winner-card">
+    <div class="winner-cup" aria-hidden="true">🏆</div>
+    <p class="winner-kicker">قهرمان مسابقه</p>
+    <h2 id="winner-name">بازیکن ۱</h2>
+    <p id="winner-summary">چه بازی پرهیجانی!</p>
+    <div class="winner-actions"><button id="winner-rematch">بازی دوباره</button><button id="winner-menu">بازگشت به منو</button></div>
   </section>
 </div>
 <div id="tutorial" class="hidden">
@@ -95,7 +125,7 @@
     <p>۱) توپ را در جهت مخالف شوت بکشید و رها کنید.<br><br>
        ۲) هر شوت باید از شکاف بین دو توپ رد شود؛ برخورد با توپ یا نرسیدن به شکاف خطاست.<br><br>
        ۳) توپ پس از عبور از خط میانی باید بایستد تا مسیر دروازه آزاد شود. برای گل باید تمام توپ از خط دروازه رد شود.<br><br>
-       ۴) حالت حرفه‌ای راهنماها را پنهان می‌کند و حداقل ۳ حرکت می‌خواهد؛ در جهت شوت به جلو بکشید و طول کشش قدرت را تعیین می‌کند.</p>
+       ۴) حالت حرفه‌ای راهنماها را پنهان می‌کند و حداقل ۳ حرکت می‌خواهد؛ یک فلیک رو به جلو بزنید، فشار لمس قدرت را می‌سازد و نگه‌داشتن انگشت اثری ندارد.</p>
     <div class="tutorial-diagram" aria-label="نمونهٔ خط نشانه‌گیری">
       <svg viewBox="0 0 500 100" role="img" aria-hidden="true">
         <defs><marker id="aim-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#42e9ff"/></marker></defs>
@@ -153,6 +183,20 @@ const ATTACK_Y = TABLE.y + TABLE.h * P.ratio;
 const VMAX = MAX_DRAG * P.imp;
 const FA=["۰","۱","۲","۳","۴","۵","۶","۷","۸","۹"];
 const fa=n=>String(n).split("").map(c=>FA[+c]??c).join("");
+const SURFACES=[
+  {id:"grass",name:"چمن",damp:2.55}, {id:"indoor",name:"سالن",damp:1.75},
+  {id:"asphalt",name:"آسفالت",damp:2.05}, {id:"table",name:"میز چوبی",damp:2.0},
+  {id:"glass",name:"شیشه",damp:1.35}, {id:"rug",name:"فرش",damp:3.25},
+  {id:"carpet",name:"موکت",damp:2.85}
+];
+const TEAM_POOLS={
+  national:["ایران","ژاپن","برزیل","آرژانتین","مراکش","فرانسه","اسپانیا","آلمان"],
+  club:["پرسپولیس","استقلال","بارسلونا","رئال مادرید","لیورپول","منچسترسیتی","بایرن مونیخ","الهلال"]
+};
+let selectedSurface="table", tournamentKind="national", teamIndices=[0,1];
+try{selectedSurface=localStorage.getItem("se-toop-surface")||selectedSurface;}catch(e){}
+if(!SURFACES.some(s=>s.id===selectedSurface))selectedSurface="table";
+let tournamentMode=false,tournamentMatch=1,tournamentWins=[0,0];
 
 // ------------------------------ وضعیت
 const ST = {MENU:0, SETUP:1, WAIT:2, MOVING:3, TRANS:4, OVER:5};
@@ -163,6 +207,8 @@ let gapCrossed = false, gateOpen = false, shotCollided = false;
 let passLineA=null, passLineB=null;
 let gateAnim = {l:390, r:540, lt:390, rt:540};
 let dragging = false, dragBall = null, dragPos = {x:0,y:0}, dragStartPos = {x:0,y:0};
+let proTouchPressure=0, proPressureMin=1, proPressureMax=0, proPressureSamples=0;
+let proPeakSpeed=0, proLastSample={x:0,y:0}, proLastSampleTime=0;
 let player = 1, scores = [0,0], movesLeft = movesPerTurn;
 let winningScore = DEFAULT_WINNING_SCORE;
 try {
@@ -257,16 +303,18 @@ function startTurn(p){
     b.spin=rnd(-6,6); b.a=rnd(0,6.28); b.dropT=0;
   });
   statusText = "";
-  showBanner("نوبت بازیکن " + fa(p), p===1 ? "#73c8ff" : "#ff8585");
+  showBanner("نوبت " + playerName(p), p===1 ? "#73c8ff" : "#ff8585");
   updateHud();
 }
 function startMatch(){
   scores=[0,0];
-  startTurn(1);
+  const openingPlayer=tournamentMode&&tournamentMatch%2===0?2:1;
+  startTurn(openingPlayer);
 }
 function updateHud(){
-  turnText = "نوبت " + fa(player) + " | حرکت " + fa(movesLeft) + "/" + fa(movesPerTurn)
-           + " | هدف " + fa(winningScore) + " | مسیر " + (gateOpen ? "آزاد" : "بسته");
+  const cupText=tournamentMode?" | جام "+fa(tournamentWins[0])+"–"+fa(tournamentWins[1])+"/۳":"";
+  turnText = "نوبت " + playerName(player) + " | حرکت " + fa(movesLeft) + "/" + fa(movesPerTurn)
+           + " | هدف " + fa(winningScore) + " | مسیر " + (gateOpen ? "آزاد" : "بسته")+cupText;
 }
 
 // ------------------------------ ذرات
@@ -274,7 +322,16 @@ function burst(x,y,n,color,life,vmin,vmax){
   for(let i=0;i<n;i++){
     const a=rnd(-Math.PI*0.15,Math.PI*1.15), sp=rnd(vmin,vmax);
     parts.push({x,y,vx:Math.cos(a)*sp*0.35,vy:Math.sin(a)*sp*0.55,
-      life,max:life,color,size:rnd(4,15)});
+      life,max:life,color,size:rnd(4,15),kind:"spark"});
+  }
+}
+function paperConfetti(n=120){
+  const colors=["#f7e8b5","#73c8ff","#ff8585","#55d69e","#d9a7ff","#ffb95c"];
+  for(let i=0;i<n;i++){
+    parts.push({x:rnd(TABLE.x,TABLE.x+TABLE.w),y:rnd(TABLE.y-180,TABLE.y+220),
+      vx:rnd(-180,180),vy:rnd(-380,-80),life:rnd(1.8,3.2),max:3.2,
+      color:colors[i%colors.length],size:rnd(5,11),width:rnd(7,17),height:rnd(4,10),
+      angle:rnd(0,6.28),spin:rnd(-9,9),kind:"paper"});
   }
 }
 
@@ -298,7 +355,8 @@ function stepPhysics(){
   for(const b of balls){
     b.p.x += b.v.x*DT; b.p.y += b.v.y*DT;
     b.a += b.spin*DT;
-    const k = 1/(1+P.damp*DT);
+    const surfaceDamp=(SURFACES.find(s=>s.id===selectedSurface)||SURFACES[3]).damp;
+    const k = 1/(1+surfaceDamp*DT);
     b.v.x *= k; b.v.y *= k;
     b.spin *= 1/(1+4.2*DT);
   }
@@ -375,7 +433,7 @@ function checkShot(){
     if(!gapCrossed){
       finish("FOUL","توپ باید از شکاف بین دو توپ عبور کند؛ نوبت سوخت.");
     } else if(professionalMode && currentTurnMoveNumber()<PROFESSIONAL_MIN_MOVES){
-      finish("FOUL","در حالت حرفه‌ای، گل از حرکت سوم به بعد مجاز است؛ نوبت سوخت.");
+      finish("FOUL",professionalEarlyGoalMessage());
     } else {
       burst(GOAL.x+GOAL.w/2, GOAL.y+40, 48, "#ffe066", 1.1, 220, 520);
       sfx(440,900,0.24); shake=Math.max(shake,14);
@@ -401,15 +459,42 @@ function judgeShot(){
 }
 
 function currentTurnMoveNumber(){ return movesPerTurn-movesLeft+1; }
+function professionalEarlyGoalMessage(){
+  return ["عجله نکن، مرد! گل از حرکت سوم حساب می‌شود؛ نوبت سوخت.",
+    "یواش قهرمان! هنوز حرکت سوم نرسیده؛ گل قبول نیست!",
+    "چه عجله‌ای! اول سه حرکت، بعد جشن گل؛ نوبت سوخت."][Math.floor(Math.random()*3)];
+}
 
+function showVictoryScreen(){
+  winnerNameEl.textContent=playerName(player);
+  document.querySelector(".winner-kicker").textContent=tournamentMode?"قهرمان جام سه‌توپ":"قهرمان مسابقه";
+  winnerSummaryEl.textContent=tournamentMode
+    ?"سری حذفی را با نتیجهٔ "+fa(tournamentWins[player-1])+"–"+fa(tournamentWins[player===1?1:0])+" برد؛ جام مال توست!"
+    :"قهرمانی با نتیجهٔ "+fa(scores[player-1])+" گل؛ چه بازی پرهیجانی!";
+  winnerScreenEl.classList.remove("hidden");
+  paperConfetti(150);
+}
+function finishTournamentMatch(){
+  tournamentWins[player-1]++;
+  updateHud();
+  if(tournamentWins[player-1]>=2){
+    state=ST.OVER;statusText=playerName(player)+" قهرمان جام شد!";
+    showBanner("قهرمان جام: "+playerName(player),"#4dff80");showVictoryScreen();return;
+  }
+  state=ST.TRANS;statusText=playerName(player)+" این بازی را برد؛ هنوز یک برد تا جام!";
+  showBanner("یک برد تا جام!", "#ffd477");
+  afterDelay(2,()=>{if(state===ST.TRANS){tournamentMatch++;startMatch();}});
+}
 function finish(kind, reason){
   if(kind==="GOAL"){
     scores[player-1] += 1;
     updateHud();
     if(scores[player-1] >= winningScore){
+      if(tournamentMode){finishTournamentMatch();return;}
       state = ST.OVER;
       statusText = "بازیکن " + fa(player) + " برنده شد!";
       showBanner("قهرمان: بازیکن " + fa(player), "#4dff80");
+      showVictoryScreen();
     } else {
       state = ST.TRANS;
       statusText = "گل برای بازیکن " + fa(player) + "!";
@@ -440,7 +525,8 @@ function finish(kind, reason){
 function aftermath(reason){
   state = ST.TRANS;
   statusText = reason;
-  showBanner("نوبت سوخت", "#ff6161");
+  const earlyProGoal=reason.startsWith("عجله")||reason.startsWith("یواش")||reason.startsWith("چه عجله‌ای");
+  showBanner(earlyProGoal?"عجله نکن، مرد!":"نوبت سوخت", earlyProGoal?"#ffd477":"#ff6161");
   updateHud();
   afterDelay(1.5, ()=>{ if(state===ST.TRANS) startTurn(player===1?2:1); });
 }
@@ -450,14 +536,21 @@ const cv = document.getElementById("cv");
 const ctx = cv.getContext("2d");
 const menuEl = document.getElementById("menu");
 const tutorialEl = document.getElementById("tutorial");
+const winnerScreenEl=document.getElementById("winner-screen");
+const winnerNameEl=document.getElementById("winner-name");
+const winnerSummaryEl=document.getElementById("winner-summary");
 const proModeEl = document.getElementById("professional-mode");
-const proHintEl = document.getElementById("pro-hint");
 const moveMinusEl = document.getElementById("move-minus");
 const movePlusEl = document.getElementById("move-plus");
 const moveCountEl = document.getElementById("move-count");
 const scoreMinusEl = document.getElementById("score-minus");
 const scorePlusEl = document.getElementById("score-plus");
 const scoreTargetEl = document.getElementById("score-target");
+const surfaceSelectEl=document.getElementById("surface-select");
+const tournamentKindEl=document.getElementById("tournament-kind");
+const team1CycleEl=document.getElementById("team1-cycle");
+const team2CycleEl=document.getElementById("team2-cycle");
+const tournamentStartEl=document.getElementById("tournament-start");
 const startGameEl = document.getElementById("start-game");
 let scale=1, ox=0, oy=0, dpr=1, landscape=false;
 
@@ -473,6 +566,14 @@ function hitMenu(p){
   return landscape ? p.x>=1760&&p.x<=1895&&p.y<=95 : p.x>=968&&p.x<=1062&&p.y<=100;
 }
 function minimumMoveCount(){ return professionalMode?PROFESSIONAL_MIN_MOVES:MIN_MOVES_PER_TURN; }
+function teamPool(){return TEAM_POOLS[tournamentKind]||TEAM_POOLS.national;}
+function playerName(index){return tournamentMode?teamPool()[teamIndices[index-1]]:"بازیکن "+fa(index);}
+function refreshTournamentMenu(){
+  const labels=tournamentKindEl.options;
+  for(const option of labels)option.selected=option.value===tournamentKind;
+  team1CycleEl.textContent="آبی · "+teamPool()[teamIndices[0]];
+  team2CycleEl.textContent="قرمز · "+teamPool()[teamIndices[1]];
+}
 function updateMoveCount(){
   moveCountEl.textContent=fa(configuredMoves)+" حرکت در هر نوبت";
   moveMinusEl.disabled=configuredMoves<=minimumMoveCount();
@@ -480,11 +581,13 @@ function updateMoveCount(){
   scoreTargetEl.textContent="هدف قهرمانی: "+fa(winningScore)+" گل";
   scoreMinusEl.disabled=winningScore<=MIN_WINNING_SCORE;
   scorePlusEl.disabled=winningScore>=MAX_WINNING_SCORE;
-  proHintEl.textContent=professionalMode?"سوایپ رو به جلو · فاصلهٔ کشش = قدرت · حداقل ۳ حرکت":"خطوط راهنما روشن می‌مانند";
+  surfaceSelectEl.value=selectedSurface;
+  refreshTournamentMenu();
 }
 function showMenu(){
   state=ST.MENU; dragging=false; dragBall=null; activeBall=null;
-  tutorialEl.classList.add("hidden");
+  tournamentMode=false;professionalMode=false;updateMoveCount();
+  tutorialEl.classList.add("hidden");winnerScreenEl.classList.add("hidden");
   for(const b of balls){ b.v={x:0,y:0}; b.spin=0; }
   setGate(false,true);
   menuEl.classList.remove("hidden");
@@ -494,10 +597,13 @@ function tutorialWasSeen(){
   try{return localStorage.getItem("se-toop-tutorial-v1")==="seen";}catch(e){return false;}
 }
 function startConfiguredGame(){
-  menuEl.classList.add("hidden"); tutorialEl.classList.add("hidden"); startMatch();
+  menuEl.classList.add("hidden"); tutorialEl.classList.add("hidden");winnerScreenEl.classList.add("hidden");startMatch();
 }
-function hideMenuAndStart(){
+function hideMenuAndStart(proMode=false){
+  professionalMode=proMode;
+  if(professionalMode) configuredMoves=Math.max(configuredMoves,PROFESSIONAL_MIN_MOVES);
   movesPerTurn=configuredMoves;
+  updateMoveCount();
   menuEl.classList.add("hidden");
   if(!tutorialWasSeen()) tutorialEl.classList.remove("hidden");
   else startConfiguredGame();
@@ -505,11 +611,6 @@ function hideMenuAndStart(){
 document.getElementById("tutorial-continue").addEventListener("click",()=>{
   try{localStorage.setItem("se-toop-tutorial-v1","seen");}catch(e){}
   startConfiguredGame();
-});
-proModeEl.addEventListener("change",()=>{
-  professionalMode=proModeEl.checked;
-  if(professionalMode) configuredMoves=Math.max(configuredMoves,PROFESSIONAL_MIN_MOVES);
-  updateMoveCount();
 });
 moveMinusEl.addEventListener("click",()=>{
   configuredMoves=Math.max(minimumMoveCount(),configuredMoves-1); updateMoveCount();
@@ -527,9 +628,58 @@ scorePlusEl.addEventListener("click",()=>{
   try{localStorage.setItem("se-toop-winning-score",String(winningScore));}catch(e){}
   updateMoveCount(); updateHud();
 });
-startGameEl.addEventListener("click",hideMenuAndStart);
+surfaceSelectEl.addEventListener("change",()=>{
+  selectedSurface=surfaceSelectEl.value;
+  try{localStorage.setItem("se-toop-surface",selectedSurface);}catch(e){}
+});
+tournamentKindEl.addEventListener("change",()=>{
+  tournamentKind=tournamentKindEl.value;teamIndices=[0,1];refreshTournamentMenu();
+});
+function cycleTeam(slot){
+  const pool=teamPool();teamIndices[slot]=(teamIndices[slot]+1)%pool.length;
+  if(teamIndices[0]===teamIndices[1])teamIndices[slot]=(teamIndices[slot]+1)%pool.length;
+  refreshTournamentMenu();
+}
+team1CycleEl.addEventListener("click",()=>cycleTeam(0));
+team2CycleEl.addEventListener("click",()=>cycleTeam(1));
+startGameEl.addEventListener("click",()=>{tournamentMode=false;hideMenuAndStart(false);});
+proModeEl.addEventListener("click",()=>{tournamentMode=false;hideMenuAndStart(true);});
+tournamentStartEl.addEventListener("click",()=>{
+  tournamentMode=true;tournamentWins=[0,0];tournamentMatch=1;hideMenuAndStart(false);
+});
+document.getElementById("winner-rematch").addEventListener("click",()=>{
+  winnerScreenEl.classList.add("hidden");
+  if(tournamentMode){tournamentWins=[0,0];tournamentMatch=1;}
+  startMatch();
+});
+document.getElementById("winner-menu").addEventListener("click",showMenu);
 updateMoveCount();
 
+function noteProfessionalInput(p,e){
+  const now=performance.now();
+  const dt=Math.max((now-proLastSampleTime)/1000,0.004);
+  proPeakSpeed=Math.max(proPeakSpeed,dist(p,proLastSample)/dt);
+  if(e.pointerType && e.pointerType!=="mouse" && Number.isFinite(e.pressure) && e.pressure>0.01){
+    proTouchPressure=Math.max(proTouchPressure,e.pressure);
+    proPressureMin=Math.min(proPressureMin,e.pressure);
+    proPressureMax=Math.max(proPressureMax,e.pressure);
+    proPressureSamples++;
+  }
+  proLastSample={...p};proLastSampleTime=now;
+}
+function professionalImpulse(swipe){
+  const len=Math.hypot(swipe.x,swipe.y);
+  const maxPower=MAX_DRAG*P.imp;
+  let intensity;
+  const pressureRange=proPressureMax-proPressureMin;
+  if(proPressureSamples>=2&&(pressureRange>=0.04||proPressureMax<0.43||proPressureMax>0.57)){
+    intensity=clamp((proTouchPressure-0.04)/0.96,0,1);
+  } else {
+    intensity=clamp(proPeakSpeed/1500,0,1);
+  }
+  const power=lerp(220,maxPower,Math.pow(intensity,1.15));
+  return {x:swipe.x/len*power,y:swipe.y/len*power};
+}
 function onDown(e){
   e.preventDefault();
   audio();
@@ -545,6 +695,9 @@ function onDown(e){
   dragBall=best; activeBall=best; dragging=best!==null;
   if(dragging){
     dragPos=p; dragStartPos={...p};
+    proTouchPressure=0;proPressureMin=1;proPressureMax=0;proPressureSamples=0;proPeakSpeed=0;
+    proLastSample={...p};proLastSampleTime=performance.now();
+    noteProfessionalInput(p,e);
     if(cv.setPointerCapture && e.pointerId!==undefined){try{cv.setPointerCapture(e.pointerId);}catch(err){}}
     sfx(720,760,0.05,0.08);
   }
@@ -553,17 +706,18 @@ function onMove(e){
   if(!dragging || !dragBall) return;
   e.preventDefault();
   dragPos=toDesign(e);
+  noteProfessionalInput(dragPos,e);
 }
 function onUp(e){
   if(!dragging || !dragBall) return;
-  dragging=false;
   const p=toDesign(e);
+  noteProfessionalInput(p,e);
+  dragging=false;
   if(professionalMode){
     const swipe={x:p.x-dragStartPos.x,y:p.y-dragStartPos.y};
     const len=Math.hypot(swipe.x,swipe.y);
     if(len>MIN_SHOT_DRAG){
-      const strength=Math.min(len,MAX_DRAG);
-      shoot(dragBall,{x:swipe.x/len*strength*P.imp,y:swipe.y/len*strength*P.imp});
+      shoot(dragBall,professionalImpulse(swipe));
     } else activeBall=null;
   } else {
     const pull={x:dragBall.p.x-p.x,y:dragBall.p.y-p.y};
@@ -613,6 +767,50 @@ function mix(c1,c2,t){
   return `rgb(${Math.round(lerp(a[0],b[0],t))},${Math.round(lerp(a[1],b[1],t))},${Math.round(lerp(a[2],b[2],t))})`;
 }
 
+function drawSurface(){
+  const x=TABLE.x,y=TABLE.y,w=TABLE.w,h=TABLE.h;
+  if(selectedSurface==="grass"){
+    ctx.fillStyle="#276c40";ctx.fillRect(x,y,w,h);
+    for(let i=0;i<8;i++){ctx.fillStyle=i%2?"rgba(205,255,187,.055)":"rgba(0,25,11,.07)";ctx.fillRect(x+i*w/8,y,w/8,h);}
+    ctx.strokeStyle="rgba(223,255,210,.22)";ctx.lineWidth=3;ctx.strokeRect(x+30,y+30,w-60,h-60);
+    ctx.beginPath();ctx.moveTo(x,y+h*.52);ctx.lineTo(x+w,y+h*.52);ctx.stroke();
+    ctx.beginPath();ctx.arc(x+w/2,y+h*.52,80,0,Math.PI*2);ctx.stroke();
+  }else if(selectedSurface==="indoor"){
+    ctx.fillStyle="#b9824f";ctx.fillRect(x,y,w,h);
+    for(let i=0;i<12;i++){ctx.fillStyle=i%2?"rgba(255,222,162,.10)":"rgba(69,35,15,.12)";ctx.fillRect(x+i*w/12,y,w/12,h);}
+    ctx.strokeStyle="rgba(65,37,22,.27)";ctx.lineWidth=3;
+    for(let yy=y+110;yy<y+h;yy+=145){ctx.beginPath();ctx.moveTo(x,yy);ctx.lineTo(x+w,yy);ctx.stroke();}
+  }else if(selectedSurface==="asphalt"){
+    ctx.fillStyle="#41474b";ctx.fillRect(x,y,w,h);
+    ctx.fillStyle="rgba(228,232,225,.13)";
+    for(let i=0;i<90;i++){const px=x+(i*137%w),py=y+(i*271%h);ctx.fillRect(px,py,2+(i%3),2);}
+    ctx.strokeStyle="rgba(230,216,163,.27)";ctx.lineWidth=4;ctx.setLineDash([30,28]);
+    ctx.beginPath();ctx.moveTo(x+55,y+90);ctx.lineTo(x+w-55,y+90);ctx.stroke();ctx.setLineDash([]);
+  }else if(selectedSurface==="glass"){
+    ctx.fillStyle="#184b59";ctx.fillRect(x,y,w,h);
+    const g=ctx.createLinearGradient(x,y,x+w,y+h);g.addColorStop(0,"rgba(169,250,255,.14)");g.addColorStop(.5,"rgba(8,49,65,.05)");g.addColorStop(1,"rgba(159,228,243,.18)");
+    ctx.fillStyle=g;ctx.fillRect(x,y,w,h);
+    ctx.strokeStyle="rgba(190,245,255,.24)";ctx.lineWidth=5;
+    for(let i=0;i<5;i++){ctx.beginPath();ctx.moveTo(x+i*240,y);ctx.lineTo(x+i*240,y+h);ctx.stroke();}
+    ctx.fillStyle="rgba(223,252,255,.09)";ctx.beginPath();ctx.moveTo(x+40,y+80);ctx.lineTo(x+250,y+80);ctx.lineTo(x+w-40,y+h-120);ctx.lineTo(x+w-220,y+h-120);ctx.fill();
+  }else if(selectedSurface==="rug"){
+    ctx.fillStyle="#792e3d";ctx.fillRect(x,y,w,h);
+    ctx.fillStyle="rgba(235,179,92,.12)";ctx.fillRect(x+38,y+38,w-76,h-76);
+    ctx.strokeStyle="#dcae65";ctx.lineWidth=7;ctx.strokeRect(x+24,y+24,w-48,h-48);ctx.lineWidth=2;ctx.strokeRect(x+43,y+43,w-86,h-86);
+    ctx.strokeStyle="rgba(250,210,133,.30)";
+    for(let yy=y+100;yy<y+h-80;yy+=130){for(let xx=x+95;xx<x+w-70;xx+=120){ctx.beginPath();ctx.moveTo(xx,yy-28);ctx.lineTo(xx+22,yy);ctx.lineTo(xx,yy+28);ctx.lineTo(xx-22,yy);ctx.closePath();ctx.stroke();}}
+  }else if(selectedSurface==="carpet"){
+    ctx.fillStyle="#34464c";ctx.fillRect(x,y,w,h);
+    for(let i=0;i<60;i++){ctx.strokeStyle=i%2?"rgba(215,232,224,.06)":"rgba(8,17,20,.10)";ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(x+i*17,y);ctx.lineTo(x+i*17+4,y+h);ctx.stroke();}
+    ctx.strokeStyle="rgba(201,220,210,.10)";for(let yy=y+14;yy<y+h;yy+=22){ctx.beginPath();ctx.moveTo(x,yy);ctx.lineTo(x+w,yy);ctx.stroke();}
+  }else{
+    ctx.fillStyle="#764d2b";ctx.fillRect(x,y,w,h);
+    ctx.fillStyle="rgba(102,63,34,.38)";for(let i=1;i<8;i++)ctx.fillRect(x+i*120,y,3,h);
+    for(let i=0;i<16;i++){ctx.strokeStyle="rgba(230,180,112,.075)";ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(x,y+i*101);ctx.bezierCurveTo(x+250,y+i*101-18,x+620,y+i*101+16,x+w,y+i*101);ctx.stroke();}
+  }
+  ctx.strokeStyle="rgba(255,255,255,.20)";ctx.lineWidth=2;ctx.strokeRect(x+2,y+2,w-4,h-4);
+}
+
 function draw(){
   ctx.setTransform(dpr,0,0,dpr,0,0);
   ctx.fillStyle="#0b0806"; ctx.fillRect(0,0,cv.width,cv.height);
@@ -633,12 +831,7 @@ function draw(){
   ctx.fillStyle="#734a2a";
   ctx.fillRect(TABLE.x-14,TABLE.y-14,TABLE.w+28,4);
   ctx.fillStyle="#763c1f";
-  ctx.fillStyle="#764d2b";
-  ctx.fillRect(TABLE.x,TABLE.y,TABLE.w,TABLE.h);
-
-  // رگه‌های چوب
-  ctx.fillStyle="rgba(102,63,34,0.45)";
-  for(let i=1;i<8;i++) ctx.fillRect(TABLE.x+i*120,TABLE.y,3,TABLE.h);
+  drawSurface();
 
   // نوار ناحیهٔ هجومی
   ctx.fillStyle="rgba(255,219,77,0.055)";
@@ -710,8 +903,13 @@ function draw(){
   // ذرات
   for(const p of parts){
     const a=clamp(p.life/p.max,0,1);
-    ctx.globalAlpha=a; ctx.fillStyle=p.color;
-    ctx.beginPath(); ctx.arc(p.x,p.y,p.size*a,0,6.2832); ctx.fill();
+    ctx.globalAlpha=a;ctx.fillStyle=p.color;
+    if(p.kind==="paper"){
+      ctx.save();ctx.translate(p.x,p.y);ctx.rotate(p.angle);
+      ctx.fillRect(-p.width/2,-p.height/2,p.width,p.height);ctx.restore();
+    } else {
+      ctx.beginPath();ctx.arc(p.x,p.y,p.size*a,0,6.2832);ctx.fill();
+    }
   }
   ctx.globalAlpha=1;
   ctx.restore();
@@ -791,8 +989,8 @@ function drawHud(){
   if(landscape){ drawHudLandscape(); ctx.restore(); return; }
   ctx.direction="rtl"; ctx.textBaseline="middle";
   ctx.fillStyle="rgba(10,13,17,0.96)"; ctx.fillRect(0,0,W,126);
-  drawScoreCard(15,7,282,51,"بازیکن ۱",scores[0],"#73c8ff",player===1);
-  drawScoreCard(15,68,282,51,"بازیکن ۲",scores[1],"#ff8585",player===2);
+  drawScoreCard(15,7,282,51,playerName(1),scores[0],"#73c8ff",player===1);
+  drawScoreCard(15,68,282,51,playerName(2),scores[1],"#ff8585",player===2);
 
   drawHudText(turnText,740,34,425,26,"#f2f2f2");
   drawHudText(statusText,740,76,425,22,"#d1c8b8");
@@ -818,8 +1016,8 @@ function drawHud(){
 function drawHudLandscape(){
   ctx.direction="rtl";ctx.textBaseline="middle";
   ctx.fillStyle="rgba(10,13,17,0.96)";ctx.fillRect(0,0,1920,112);
-  drawScoreCard(16,6,282,46,"بازیکن ۱",scores[0],"#73c8ff",player===1,true);
-  drawScoreCard(16,60,282,46,"بازیکن ۲",scores[1],"#ff8585",player===2,true);
+  drawScoreCard(16,6,282,46,playerName(1),scores[0],"#73c8ff",player===1,true);
+  drawScoreCard(16,60,282,46,playerName(2),scores[1],"#ff8585",player===2,true);
   drawHudText(turnText,1650,30,1335,25,"#f2f2f2");
   drawHudText(statusText,1650,73,1335,21,"#d1c8b8");
   if(!professionalMode){
@@ -867,7 +1065,8 @@ function frame(now){
   for(let i=parts.length-1;i>=0;i--){
     const p=parts[i];
     p.x+=p.vx*dt; p.y+=p.vy*dt;
-    p.vy+=260*dt; p.vx*=1-2.2*dt; p.vy*=1-1.1*dt;
+    p.vy+=(p.kind==="paper"?520:260)*dt; p.vx*=1-2.2*dt; p.vy*=1-1.1*dt;
+    if(p.kind==="paper")p.angle+=p.spin*dt;
     p.life-=dt;
     if(p.life<=0) parts.splice(i,1);
   }

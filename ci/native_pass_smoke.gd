@@ -58,11 +58,24 @@ func _run() -> void:
 	if game._minimum_configured_moves() != 3:
 		failures.append("Professional-mode minimum move count is not three")
 	game.professional_mode = false
-	var pro_light: Vector2 = game._professional_shot_impulse(Vector2(0, -80))
-	var pro_full: Vector2 = game._professional_shot_impulse(Vector2(0, -500))
-	if not is_equal_approx(pro_light.length(), 800.0) \
-			or not is_equal_approx(pro_full.length(), 3200.0):
-		failures.append("Professional swipe length does not match normal shot-power range")
+	var pro_short_swipe: Vector2 = game._professional_shot_impulse(
+		Vector2(0, -40), true, 0.35, 0.0)
+	var pro_long_swipe: Vector2 = game._professional_shot_impulse(
+		Vector2(0, -500), true, 0.35, 0.0)
+	var pro_light_pressure: Vector2 = game._professional_shot_impulse(
+		Vector2(0, -80), true, 0.15, 0.0)
+	var pro_heavy_pressure: Vector2 = game._professional_shot_impulse(
+		Vector2(0, -80), true, 0.85, 0.0)
+	if not is_equal_approx(pro_short_swipe.length(), pro_long_swipe.length()):
+		failures.append("Professional shot power still depends on swipe distance")
+	if pro_heavy_pressure.length() <= pro_light_pressure.length():
+		failures.append("Professional shot power does not respond to touch pressure")
+	var pro_slow_flick: Vector2 = game._professional_shot_impulse(
+		Vector2(0, -80), false, 0.0, 180.0)
+	var pro_fast_flick: Vector2 = game._professional_shot_impulse(
+		Vector2(0, -80), false, 0.0, 1200.0)
+	if pro_fast_flick.length() <= pro_slow_flick.length():
+		failures.append("Fallback professional power does not respond to flick speed")
 	if game.get_node_or_null("GoalBackstop") == null:
 		failures.append("Goal tunnel has no physical backstop")
 	game.gap_crossed = false
@@ -84,8 +97,25 @@ func _run() -> void:
 	if game.state != 5:
 		failures.append("Match did not end at the configured score target")
 	game._handle_back_request()
-	if game.state != 0 or not game.menu_overlay.visible:
-		failures.append("Back request did not return to the game menu")
+	if game.state != 0 or not game.menu_overlay.visible or game.victory_overlay.visible:
+		failures.append("Back request did not return cleanly to the game menu")
+	var old_surface: int = game.selected_surface
+	game._cycle_surface()
+	if game.selected_surface == old_surface or game.surface_pattern_nodes.is_empty():
+		failures.append("Surface selector did not update the rendered court")
+	game.tournament_mode = true
+	game.tournament_wins = [0, 0]
+	game.tournament_team_indices = [0, 1]
+	if game._player_display_name(1) != "ایران" or game._player_display_name(2) != "ژاپن":
+		failures.append("Tournament team names are not applied to both players")
+	game.current_player = 1
+	game._finish_tournament_match()
+	if game.tournament_wins[0] != 1 or game.state != 4:
+		failures.append("First tournament match did not advance the series")
+	game._finish_tournament_match()
+	if game.state != 5 or not game.victory_overlay.visible:
+		failures.append("Tournament champion did not receive the victory screen")
+	game._show_main_menu()
 	game._set_gate(true, true)
 	var goal_probe: RigidBody2D = game.balls[0]
 	goal_probe.global_position = Vector2(540, 180)
