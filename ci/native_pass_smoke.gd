@@ -58,8 +58,8 @@ func _run() -> void:
 	if game._minimum_configured_moves() != 3:
 		failures.append("Professional-mode minimum move count is not three")
 	game.professional_mode = false
-	var pro_light := game._professional_shot_impulse(Vector2(0, -80))
-	var pro_full := game._professional_shot_impulse(Vector2(0, -500))
+	var pro_light: Vector2 = game._professional_shot_impulse(Vector2(0, -80))
+	var pro_full: Vector2 = game._professional_shot_impulse(Vector2(0, -500))
 	if not is_equal_approx(pro_light.length(), 800.0) \
 			or not is_equal_approx(pro_full.length(), 3200.0):
 		failures.append("Professional swipe length does not match normal shot-power range")
