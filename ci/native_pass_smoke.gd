@@ -55,9 +55,27 @@ func _run() -> void:
 	if game._minimum_configured_moves() != 2:
 		failures.append("Normal-mode minimum move count is not two")
 	game.professional_mode = true
-	if game._minimum_configured_moves() != 3:
-		failures.append("Professional-mode minimum move count is not three")
+	if game._minimum_configured_moves() != 2:
+		failures.append("Professional-mode minimum move count is not two")
 	game.professional_mode = false
+	game.selected_surface = 4
+	if game._professional_move_cap() != 2:
+		failures.append("Low-friction professional move cap is not two")
+	game.selected_surface = 1
+	if game._professional_move_cap() != 3:
+		failures.append("Futsal professional move cap is not three")
+	game.selected_surface = 0
+	if game._professional_move_cap() != 4:
+		failures.append("High-friction professional move cap is not four")
+	game.selected_surface = 3
+	game.tournament_size = 4
+	game._cycle_tournament_size()
+	if game.tournament_size != 8:
+		failures.append("Tournament size did not scale to eight entrants")
+	game._cycle_tournament_size()
+	if game.tournament_size != 2:
+		failures.append("Tournament size did not wrap to two entrants")
+	game.tournament_size = 4
 	var pro_short_swipe: Vector2 = game._professional_shot_impulse(
 		Vector2(0, -40), true, 0.35, 0.0)
 	var pro_long_swipe: Vector2 = game._professional_shot_impulse(

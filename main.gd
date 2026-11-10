@@ -20,9 +20,8 @@ const MAX_WINNING_SCORE := 15
 const DEFAULT_MOVES_PER_TURN := 3
 const MIN_MOVES_PER_TURN := 2
 const MAX_MOVES_PER_TURN := 9
-const PROFESSIONAL_MIN_MOVES := 3
 const SURFACE_IDS := ["grass", "indoor", "asphalt", "table", "glass", "rug", "carpet"]
-const SURFACE_NAMES := ["چمن", "سالن", "آسفالت", "میز چوبی", "شیشه", "فرش", "موکت"]
+const SURFACE_NAMES := ["چمن", "سالن فوتسال", "آسفالت", "میز چوبی", "شیشه", "فرش", "موکت"]
 const SURFACE_DAMPING := [2.55, 1.75, 2.05, 2.0, 1.35, 3.25, 2.85]
 const NATIONAL_TEAMS := ["ایران", "ژاپن", "برزیل", "آرژانتین", "مراکش", "فرانسه", "اسپانیا", "آلمان"]
 const CLUB_TEAMS := ["پرسپولیس", "استقلال", "بارسلونا", "رئال مادرید", "لیورپول", "منچسترسیتی", "بایرن مونیخ", "الهلال"]
@@ -46,6 +45,8 @@ var state: GameState = GameState.WAITING_FOR_INPUT
 var balls: Array[RigidBody2D] = []
 var ball_visuals: Array[Node2D] = []
 var ball_crease_lines: Array[Line2D] = []
+var ball_team_marks: Array[Label] = []
+var ball_team_crests: Array[Polygon2D] = []
 var active_ball: RigidBody2D = null
 var other_balls: Array[RigidBody2D] = []
 var prev_active_pos := Vector2.ZERO
@@ -75,6 +76,18 @@ var tournament_team_indices := [0, 1]
 var tournament_mode := false
 var tournament_wins := [0, 0]
 var tournament_match := 1
+var tournament_size := 4
+var tournament_round := 1
+var tournament_remaining: Array[String] = []
+var tournament_opponent := ""
+var tournament_champion := ""
+var vs_ai := false
+var ai_difficulty := 2
+var ai_turn_pending := false
+var selected_net_style := 0
+var music_style := 0
+var music_frame := 0
+var selected_menu_page := 0
 
 # ---------------------------------------------------------------- نودها
 var main_camera: Camera2D
@@ -92,6 +105,12 @@ var gate_left: AnimatableBody2D
 var gate_right: AnimatableBody2D
 var gate_led_left: ColorRect
 var gate_led_right: ColorRect
+var goal_back_panel: ColorRect
+var goal_mesh_panel: ColorRect
+var net_vertical_lines: Array[Line2D] = []
+var net_horizontal_lines: Array[Line2D] = []
+var net_diagonal_lines: Array[Line2D] = []
+var futsal_markings: Array[Line2D] = []
 var gate_open := false
 var gap_crossed := false
 var shot_collided := false
@@ -136,6 +155,12 @@ var tournament_kind_button: Button
 var tournament_team1_button: Button
 var tournament_team2_button: Button
 var tournament_start_button: Button
+var tournament_size_button: Button
+var vs_ai_button: Button
+var ai_difficulty_button: Button
+var net_style_button: Button
+var music_style_button: Button
+var menu_tab_buttons: Array[Button] = []
 var menu_title: Label
 var menu_hint: Label
 var move_count_label: Label
@@ -160,6 +185,10 @@ var toast_label: Label
 
 var audio_out: AudioStreamPlayer
 var audio_sfx: AudioStreamPlayer
+var music_player: AudioStreamPlayer
+var music_playback: AudioStreamGeneratorPlayback
+var music_phase := 0.0
+var music_sample_index := 0
 var font_ready := false
 
 # ---------------------------------------------------------------- چرخهٔ عمر
@@ -179,9 +208,8 @@ func _ready() -> void:
 
 ## ریشهٔ صحنه حرکت نمی‌کند (لرزش روی دوربین است) تا فیزیک دست‌نخورده بماند.
 ##
-## نکتهٔ مهم: اندازهٔ طراحی همیشه 1080×1920 است، نه اندازهٔ ویوپورت.
-## stretch/aspect=expand است؛ در صفحهٔ افقی دوربین صحنه را ۹۰ درجه می‌چرخاند و در
-## هر دو جهت با بزرگ‌نمایی مناسب میز کامل داخل پنجره جا می‌گیرد.
+## اندازهٔ طراحی همیشه 1080×1920 است و بازی در جهت عمودی می‌ماند؛ دوربین هرگز
+## برای حالت افقی نمی‌چرخد و فضای اضافهٔ ویوپورت با حاشیه حفظ می‌شود.
 func _setup_camera() -> void:
 	camera_center = DESIGN_SIZE * 0.5
 	main_camera = Camera2D.new()
@@ -216,13 +244,22 @@ func _setup_font() -> void:
 	for lbl in labels:
 		if lbl != null:
 			lbl.add_theme_font_override("font", sys_font)
+	for team_mark in ball_team_marks:
+		team_mark.add_theme_font_override("font", sys_font)
 	menu_button.add_theme_font_override("font", sys_font)
 	moves_down_button.add_theme_font_override("font", sys_font)
 	moves_up_button.add_theme_font_override("font", sys_font)
 	start_game_button.add_theme_font_override("font", sys_font)
 	professional_button.add_theme_font_override("font", sys_font)
+	for tab in menu_tab_buttons:
+		tab.add_theme_font_override("font", sys_font)
 	surface_cycle_button.add_theme_font_override("font", sys_font)
+	net_style_button.add_theme_font_override("font", sys_font)
+	music_style_button.add_theme_font_override("font", sys_font)
+	vs_ai_button.add_theme_font_override("font", sys_font)
+	ai_difficulty_button.add_theme_font_override("font", sys_font)
 	tournament_kind_button.add_theme_font_override("font", sys_font)
+	tournament_size_button.add_theme_font_override("font", sys_font)
 	tournament_team1_button.add_theme_font_override("font", sys_font)
 	tournament_team2_button.add_theme_font_override("font", sys_font)
 	tournament_start_button.add_theme_font_override("font", sys_font)
@@ -246,6 +283,51 @@ func _setup_audio() -> void:
 	audio_sfx = AudioStreamPlayer.new()
 	audio_sfx.name = "SfxBus"
 	add_child(audio_sfx)
+
+	music_player = AudioStreamPlayer.new()
+	music_player.name = "BackgroundMusic"
+	var music_generator := AudioStreamGenerator.new()
+	music_generator.mix_rate = MIX_RATE
+	music_generator.buffer_length = 0.45
+	music_player.stream = music_generator
+	music_player.volume_db = -17.0
+	add_child(music_player)
+	_update_music_mix()
+
+func _update_music_mix() -> void:
+	if music_player == null:
+		return
+	if music_style == 0:
+		music_player.stop()
+		music_playback = null
+		return
+	if not music_player.playing:
+		music_player.play()
+		music_playback = music_player.get_stream_playback() as AudioStreamGeneratorPlayback
+		music_sample_index = 0
+		music_phase = 0.0
+
+func _fill_music_buffer() -> void:
+	if music_playback == null or music_style == 0:
+		return
+	var available := music_playback.get_frames_available()
+	var melodies := [
+		[220.0, 261.63, 329.63, 392.0, 329.63, 293.66, 261.63, 196.0],
+		[110.0, 130.81, 146.83, 164.81, 196.0, 164.81, 146.83, 130.81]
+	]
+	var melody: Array = melodies[clampi(music_style - 1, 0, melodies.size() - 1)]
+	for _i in range(available):
+		var beat_frames := int(MIX_RATE * 0.32)
+		var beat := int(music_sample_index / beat_frames)
+		var note := float(melody[beat % melody.size()])
+		var beat_phase := float(music_sample_index % beat_frames) / float(beat_frames)
+		var envelope := 0.42 + 0.58 * sin(PI * beat_phase)
+		var bass := note * (0.5 if music_style == 1 else 0.25)
+		var sample := (sin(music_phase * TAU) + 0.28 * sin(music_phase * TAU * 2.0)
+			+ 0.18 * sin(music_phase * TAU * 0.5) + 0.2 * sin(music_phase * TAU * bass / note)) * envelope * 0.11
+		music_playback.push_frame(Vector2(sample, sample))
+		music_phase = fmod(music_phase + note / MIX_RATE, 1.0)
+		music_sample_index += 1
 
 ## افکت سادهٔ سوییپ فرکانسی. یک AudioStreamPlayer فقط یک صدا را هم‌زمان پخش می‌کند،
 ## پس هر افکت بافر خودش را دارد و دومی اولی را قطع نمی‌کند.
@@ -291,6 +373,7 @@ func _build_environment() -> void:
 		pattern.visible = false
 		surface_pattern_nodes.append(pattern)
 	_update_surface_visuals()
+	_build_futsal_markings()
 
 	var attack_y := _attack_line_y()
 	attack_band = Polygon2D.new()
@@ -417,6 +500,54 @@ func _update_surface_visuals() -> void:
 				var py := y + fposmod(i * 103.0, h - 2.0)
 				_set_surface_pattern(i, Vector2(px, py), Vector2(2, 20), Color(0.88, 0.93, 0.87, 0.095))
 
+func _add_futsal_line(points: PackedVector2Array) -> void:
+	var line := Line2D.new()
+	line.points = points
+	line.width = 4.0
+	line.default_color = Color(1.0, 0.94, 0.80, 0.72)
+	line.joint_mode = Line2D.LINE_JOINT_ROUND
+	line.begin_cap_mode = Line2D.LINE_CAP_ROUND
+	line.end_cap_mode = Line2D.LINE_CAP_ROUND
+	line.visible = selected_surface == 1
+	add_child(line)
+	futsal_markings.append(line)
+
+func _build_futsal_markings() -> void:
+	var x := TABLE_RECT.position.x + 34.0
+	var y := TABLE_RECT.position.y + 34.0
+	var w := TABLE_RECT.size.x - 68.0
+	var h := TABLE_RECT.size.y - 68.0
+	_add_futsal_line(PackedVector2Array([
+		Vector2(x, y), Vector2(x + w, y), Vector2(x + w, y + h),
+		Vector2(x, y + h), Vector2(x, y)
+	]))
+	_add_futsal_line(PackedVector2Array([Vector2(x, y + h * 0.5), Vector2(x + w, y + h * 0.5)]))
+	var center := Vector2(x + w * 0.5, y + h * 0.5)
+	var circle := PackedVector2Array()
+	for i in range(49):
+		var angle := float(i) / 48.0 * TAU
+		circle.append(center + Vector2.from_angle(angle) * 92.0)
+	_add_futsal_line(circle)
+	for top_half in [true, false]:
+		var box_y := y + 24.0 if top_half else y + h - 214.0
+		_add_futsal_line(PackedVector2Array([
+			Vector2(x + w * 0.25, box_y), Vector2(x + w * 0.75, box_y),
+			Vector2(x + w * 0.75, box_y + 190.0), Vector2(x + w * 0.25, box_y + 190.0)
+		]))
+		var arc_center_y := box_y + 190.0 if top_half else box_y
+		var arc := PackedVector2Array()
+		for i in range(25):
+			var angle := PI * float(i) / 24.0
+			if not top_half:
+				angle += PI
+			arc.append(Vector2(center.x, arc_center_y) + Vector2.from_angle(angle) * 74.0)
+		_add_futsal_line(arc)
+	_refresh_futsal_markings()
+
+func _refresh_futsal_markings() -> void:
+	for line in futsal_markings:
+		line.visible = selected_surface == 1
+
 func _build_walls() -> void:
 	var t := WALL_THICKNESS
 	var left := TABLE_RECT.position.x
@@ -466,11 +597,37 @@ func _attack_line_y() -> float:
 	return TABLE_RECT.position.y + TABLE_RECT.size.y * ATTACK_LINE_RATIO
 
 func _build_goal() -> void:
-	_rect(GOAL_RECT.position - Vector2(16, 16), GOAL_RECT.size + Vector2(32, 18),
+	goal_back_panel = _rect(GOAL_RECT.position - Vector2(16, 16), GOAL_RECT.size + Vector2(32, 18),
 		Color(0.07, 0.24, 0.15))
-	_rect(GOAL_RECT.position, GOAL_RECT.size, Color(0.11, 0.50, 0.29))
+	goal_mesh_panel = _rect(GOAL_RECT.position, GOAL_RECT.size, Color(0.11, 0.50, 0.29))
 	_rect(Vector2(GOAL_RECT.position.x, GOAL_RECT.position.y - WALL_THICKNESS),
 		Vector2(GOAL_RECT.size.x, WALL_THICKNESS), Color(0.13, 0.34, 0.23))
+	for i in range(13):
+		var x := GOAL_RECT.position.x + float(i) * GOAL_RECT.size.x / 12.0
+		var vertical := Line2D.new()
+		vertical.points = PackedVector2Array([Vector2(x, GOAL_RECT.position.y), Vector2(x, GOAL_RECT.end.y)])
+		vertical.width = 2.0
+		add_child(vertical)
+		net_vertical_lines.append(vertical)
+	for i in range(6):
+		var y := GOAL_RECT.position.y + float(i) * GOAL_RECT.size.y / 5.0
+		var horizontal := Line2D.new()
+		horizontal.points = PackedVector2Array([Vector2(GOAL_RECT.position.x, y), Vector2(GOAL_RECT.end.x, y)])
+		horizontal.width = 2.0
+		add_child(horizontal)
+		net_horizontal_lines.append(horizontal)
+	for direction in [-1.0, 1.0]:
+		for i in range(8):
+			var x := GOAL_RECT.position.x + float(i) * 45.0
+			var diagonal := Line2D.new()
+			var end_x := x + direction * 80.0
+			diagonal.points = PackedVector2Array([
+				Vector2(x, GOAL_RECT.position.y), Vector2(end_x, GOAL_RECT.end.y)
+			])
+			diagonal.width = 2.2
+			add_child(diagonal)
+			net_diagonal_lines.append(diagonal)
+	_refresh_goal_net()
 
 	gate_led_left = _rect(Vector2(GOAL_RECT.position.x - 30, GOAL_RECT.position.y + 40),
 		Vector2(20, 20), Color(1.0, 0.15, 0.15))
@@ -479,6 +636,32 @@ func _build_goal() -> void:
 
 	gate_left = _create_gate_door(Vector2(GOAL_RECT.position.x, GOAL_RECT.end.y - 22))
 	gate_right = _create_gate_door(Vector2(GOAL_RECT.position.x + 150, GOAL_RECT.end.y - 22))
+
+func _refresh_goal_net() -> void:
+	if goal_mesh_panel == null:
+		return
+	var back_colors := [Color("#0e3e28"), Color("#26343a"), Color("#123a58"), Color("#59472f")]
+	var mesh_colors := [Color("#23864d"), Color("#637179"), _player_team_color(current_player), Color("#b49a70")]
+	goal_back_panel.color = back_colors[selected_net_style]
+	goal_mesh_panel.color = mesh_colors[selected_net_style]
+	var net_colors := [Color(1, 1, 1, 0.25), Color(0.84, 0.91, 0.95, 0.62),
+		_player_team_color(current_player).lightened(0.28), Color(1.0, 0.85, 0.61, 0.60)]
+	for line in net_vertical_lines:
+		line.visible = selected_net_style != 1
+		line.default_color = net_colors[selected_net_style]
+		line.width = 3.4 if selected_net_style == 2 else 2.0
+	for line in net_horizontal_lines:
+		line.visible = selected_net_style != 1
+		line.default_color = net_colors[selected_net_style]
+		line.width = 1.6 if selected_net_style == 0 else 2.4
+	for line in net_diagonal_lines:
+		line.visible = selected_net_style == 1
+		line.default_color = net_colors[selected_net_style]
+	if gate_left != null:
+		var door_color := Color("#d13038") if selected_net_style != 2 else _player_team_color(current_player)
+		for door in [gate_left, gate_right]:
+			var body := door.get_child(0) as ColorRect
+			body.color = door_color
 
 ## AnimatableBody2D تا وقتی position با تویین جابه‌جا می‌شود، شکل برخورد هم حرکت کند.
 func _create_gate_door(pos: Vector2) -> AnimatableBody2D:
@@ -730,6 +913,13 @@ func _build_hud() -> void:
 	menu_accent.color = Color(0.92, 0.64, 0.28, 0.9)
 	menu_accent.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	menu_panel.add_child(menu_accent)
+	menu_tab_buttons.clear()
+	var menu_tab_names := ["مسابقه", "جام", "زمین و صدا"]
+	for tab_index in range(menu_tab_names.size()):
+		var tab := _new_button(menu_panel, menu_tab_names[tab_index])
+		tab.pressed.connect(_set_menu_tab.bind(tab_index))
+		_style_button(tab, Color(0.14, 0.16, 0.18, 1.0))
+		menu_tab_buttons.append(tab)
 	move_count_label = _label(menu_panel, Vector2.ZERO, 30, Color.WHITE)
 	move_count_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	moves_down_button = _new_button(menu_panel, "−")
@@ -742,13 +932,23 @@ func _build_hud() -> void:
 	score_down_button.pressed.connect(_change_winning_score.bind(-1))
 	score_up_button = _new_button(menu_panel, "+")
 	score_up_button.pressed.connect(_change_winning_score.bind(1))
-	professional_button = _new_button(menu_panel, "✦ بازی حرفه‌ای · فلیک + فشار لمس")
+	vs_ai_button = _new_button(menu_panel, "👤 دو نفره")
+	vs_ai_button.pressed.connect(_toggle_ai_mode)
+	ai_difficulty_button = _new_button(menu_panel, "هوش مصنوعی: معمولی")
+	ai_difficulty_button.pressed.connect(_cycle_ai_difficulty)
+	professional_button = _new_button(menu_panel, "✦ ورود به میدان حرفه‌ای")
 	professional_button.tooltip_text = "در دستگاه‌های پشتیبان، فشار انگشت قدرت را تعیین می‌کند؛ در غیر این صورت فلیک سریع."
 	professional_button.pressed.connect(_on_professional_mode_pressed)
 	surface_cycle_button = _new_button(menu_panel, "🏟 زمین: میز چوبی · لمس برای تغییر")
 	surface_cycle_button.pressed.connect(_cycle_surface)
+	net_style_button = _new_button(menu_panel, "تور دروازه: کلاسیک")
+	net_style_button.pressed.connect(_cycle_net_style)
+	music_style_button = _new_button(menu_panel, "موسیقی زمینه: خاموش")
+	music_style_button.pressed.connect(_cycle_music_style)
 	tournament_kind_button = _new_button(menu_panel, "جام ملت‌ها · لمس برای انتخاب جام باشگاه‌ها")
 	tournament_kind_button.pressed.connect(_cycle_tournament_kind)
+	tournament_size_button = _new_button(menu_panel, "تعداد تیم‌ها: ۴")
+	tournament_size_button.pressed.connect(_cycle_tournament_size)
 	tournament_team1_button = _new_button(menu_panel, "آبی · ایران")
 	tournament_team1_button.pressed.connect(_cycle_tournament_team.bind(0))
 	tournament_team2_button = _new_button(menu_panel, "قرمز · ژاپن")
@@ -759,7 +959,12 @@ func _build_hud() -> void:
 	_style_button(start_game_button, Color(0.43, 0.25, 0.10, 1.0))
 	_style_button(professional_button, Color(0.48, 0.30, 0.11, 1.0))
 	_style_button(surface_cycle_button, Color(0.14, 0.18, 0.18, 1.0))
+	_style_button(net_style_button, Color(0.15, 0.22, 0.24, 1.0))
+	_style_button(music_style_button, Color(0.18, 0.16, 0.25, 1.0))
 	_style_button(tournament_kind_button, Color(0.10, 0.20, 0.27, 1.0))
+	_style_button(tournament_size_button, Color(0.12, 0.24, 0.30, 1.0))
+	_style_button(vs_ai_button, Color(0.10, 0.18, 0.23, 1.0))
+	_style_button(ai_difficulty_button, Color(0.13, 0.16, 0.20, 1.0))
 	_style_button(tournament_team1_button, Color(0.07, 0.17, 0.27, 1.0))
 	_style_button(tournament_team2_button, Color(0.28, 0.10, 0.13, 1.0))
 	_style_button(tournament_start_button, Color(0.10, 0.32, 0.40, 1.0))
@@ -806,6 +1011,8 @@ func _build_hud() -> void:
 	_style_button(tutorial_continue_button, Color(0.43, 0.25, 0.10, 1.0))
 	tutorial_continue_button.pressed.connect(_on_tutorial_continue_pressed)
 	_build_victory_overlay()
+	_set_menu_tab(0)
+	_refresh_tournament_menu()
 
 	_refresh_layout()
 
@@ -864,19 +1071,14 @@ func _refresh_layout() -> void:
 	var view_size := get_viewport().get_visible_rect().size
 	if view_size.x <= 0.0 or view_size.y <= 0.0:
 		return
-	var landscape := view_size.x > view_size.y
 	var design_fit := minf(view_size.x / DESIGN_SIZE.x, view_size.y / DESIGN_SIZE.y)
-	if landscape:
-		design_fit = minf(view_size.x / DESIGN_SIZE.y, view_size.y / DESIGN_SIZE.x)
-		main_camera.rotation = -PI * 0.5
-	else:
-		main_camera.rotation = 0.0
+	main_camera.rotation = 0.0
 	main_camera.zoom = Vector2.ONE * maxf(design_fit, 0.05)
 	camera_center = DESIGN_SIZE * 0.5
 	main_camera.position = camera_center
 	if hud_root != null:
-		_layout_hud(view_size, landscape)
-		_layout_tutorial(view_size, landscape)
+		_layout_hud(view_size, false)
+		_layout_tutorial(view_size, false)
 		if p1_score_label != null:
 			_update_hud()
 
@@ -976,70 +1178,61 @@ func _layout_victory(view_size: Vector2) -> void:
 	victory_replay_button.add_theme_font_size_override("font_size", roundi(22 * ui_scale))
 	victory_menu_button.add_theme_font_size_override("font_size", roundi(22 * ui_scale))
 
-func _layout_menu(view_size: Vector2, landscape: bool) -> void:
+func _layout_menu(view_size: Vector2, _landscape: bool) -> void:
 	menu_overlay.position = Vector2.ZERO
 	menu_overlay.size = view_size
-	var panel_ref := Vector2(980, 1010) if landscape else Vector2(860, 1020)
+	var panel_ref := Vector2(860, 820)
 	var panel_scale := minf((view_size.x - 32) / panel_ref.x,
 		(view_size.y - 32) / panel_ref.y)
 	panel_scale = maxf(panel_scale, 0.35)
 	var panel_size := panel_ref * panel_scale
 	menu_panel.position = (view_size - panel_size) * 0.5
 	menu_panel.size = panel_size
-	_layout_label(menu_kicker, Rect2(Vector2(36, 18) * panel_scale,
-		Vector2(panel_ref.x - 72, 30) * panel_scale), roundi(16 * panel_scale))
-	_layout_label(menu_title, Rect2(Vector2(36, 48) * panel_scale,
-		Vector2(panel_ref.x - 72, 76) * panel_scale), roundi(56 * panel_scale))
-	_layout_label(menu_hint, Rect2(Vector2(36, 122) * panel_scale,
-		Vector2(panel_ref.x - 72, 42) * panel_scale), roundi(20 * panel_scale))
-	_layout_label(menu_emblem, Rect2(Vector2(36, 166) * panel_scale,
-		Vector2(panel_ref.x - 72, 56) * panel_scale), roundi(38 * panel_scale))
-	menu_accent.position = Vector2(110, 236) * panel_scale
-	menu_accent.size = Vector2(panel_ref.x - 220, 3) * panel_scale
-	menu_row_panels[0].position = Vector2(80, 258) * panel_scale
-	menu_row_panels[0].size = Vector2(panel_ref.x - 160, 94) * panel_scale
-	menu_row_panels[1].position = Vector2(80, 358) * panel_scale
-	menu_row_panels[1].size = Vector2(panel_ref.x - 160, 82) * panel_scale
-	_layout_label(move_count_label, Rect2(Vector2((panel_ref.x - 420) * 0.5, 274) * panel_scale,
-		Vector2(420, 68) * panel_scale), roundi(30 * panel_scale))
-	moves_down_button.position = Vector2(150, 270) * panel_scale
-	moves_down_button.size = Vector2(100, 78) * panel_scale
-	moves_up_button.position = Vector2(panel_ref.x - 250, 270) * panel_scale
-	moves_up_button.size = Vector2(100, 78) * panel_scale
-	moves_down_button.add_theme_font_size_override("font_size", roundi(36 * panel_scale))
-	moves_up_button.add_theme_font_size_override("font_size", roundi(36 * panel_scale))
-	var score_row_y := 366.0
-	score_target_label.position = Vector2((panel_ref.x - 360) * 0.5, score_row_y) * panel_scale
-	score_target_label.size = Vector2(360, 64) * panel_scale
-	score_target_label.add_theme_font_size_override("font_size", roundi(25 * panel_scale))
-	score_down_button.position = Vector2((panel_ref.x - 560) * 0.5, score_row_y - 2) * panel_scale
-	score_down_button.size = Vector2(100, 68) * panel_scale
-	score_up_button.position = Vector2(panel_ref.x - (panel_ref.x - 560) * 0.5 - 100,
-		score_row_y - 2) * panel_scale
-	score_up_button.size = Vector2(100, 68) * panel_scale
-	score_down_button.add_theme_font_size_override("font_size", roundi(32 * panel_scale))
-	score_up_button.add_theme_font_size_override("font_size", roundi(32 * panel_scale))
-	professional_button.position = Vector2(100, 464) * panel_scale
-	professional_button.size = Vector2(panel_ref.x - 200, 64) * panel_scale
-	professional_button.add_theme_font_size_override("font_size", roundi(18 * panel_scale))
-	surface_cycle_button.position = Vector2(100, 540) * panel_scale
-	surface_cycle_button.size = Vector2(panel_ref.x - 200, 54) * panel_scale
-	surface_cycle_button.add_theme_font_size_override("font_size", roundi(17 * panel_scale))
-	tournament_kind_button.position = Vector2(100, 602) * panel_scale
-	tournament_kind_button.size = Vector2(panel_ref.x - 200, 54) * panel_scale
-	tournament_kind_button.add_theme_font_size_override("font_size", roundi(17 * panel_scale))
-	tournament_team1_button.position = Vector2(100, 664) * panel_scale
-	tournament_team1_button.size = Vector2((panel_ref.x - 220) * 0.5, 50) * panel_scale
-	tournament_team2_button.position = Vector2(120 + (panel_ref.x - 220) * 0.5, 664) * panel_scale
+	_layout_label(menu_kicker, Rect2(Vector2(36, 16), Vector2(panel_ref.x - 72, 28)) * panel_scale, roundi(15 * panel_scale))
+	_layout_label(menu_title, Rect2(Vector2(36, 40), Vector2(panel_ref.x - 72, 68)) * panel_scale, roundi(48 * panel_scale))
+	_layout_label(menu_hint, Rect2(Vector2(36, 108), Vector2(panel_ref.x - 72, 34)) * panel_scale, roundi(18 * panel_scale))
+	_layout_label(menu_emblem, Rect2(Vector2(36, 142), Vector2(panel_ref.x - 72, 46)) * panel_scale, roundi(32 * panel_scale))
+	menu_accent.position = Vector2(72, 198) * panel_scale
+	menu_accent.size = Vector2(panel_ref.x - 144, 2) * panel_scale
+	var tab_width := (panel_ref.x - 176) / 3.0
+	for i in range(menu_tab_buttons.size()):
+		menu_tab_buttons[i].position = Vector2(72 + i * (tab_width + 16), 212) * panel_scale
+		menu_tab_buttons[i].size = Vector2(tab_width, 48) * panel_scale
+		menu_tab_buttons[i].add_theme_font_size_override("font_size", roundi(17 * panel_scale))
+	menu_row_panels[0].position = Vector2(76, 274) * panel_scale
+	menu_row_panels[0].size = Vector2(panel_ref.x - 152, 58) * panel_scale
+	menu_row_panels[1].position = Vector2(76, 342) * panel_scale
+	menu_row_panels[1].size = Vector2(panel_ref.x - 152, 58) * panel_scale
+	_layout_label(move_count_label, Rect2(Vector2((panel_ref.x - 470) * 0.5, 275), Vector2(470, 56)) * panel_scale, roundi(22 * panel_scale))
+	moves_down_button.position = Vector2(98, 274) * panel_scale
+	moves_down_button.size = Vector2(88, 58) * panel_scale
+	moves_up_button.position = Vector2(panel_ref.x - 186, 274) * panel_scale
+	moves_up_button.size = Vector2(88, 58) * panel_scale
+	_layout_label(score_target_label, Rect2(Vector2((panel_ref.x - 360) * 0.5, 343), Vector2(360, 56)) * panel_scale, roundi(22 * panel_scale))
+	score_down_button.position = Vector2(98, 342) * panel_scale
+	score_down_button.size = Vector2(88, 58) * panel_scale
+	score_up_button.position = Vector2(panel_ref.x - 186, 342) * panel_scale
+	score_up_button.size = Vector2(88, 58) * panel_scale
+	for control in [moves_down_button, moves_up_button, score_down_button, score_up_button]:
+		control.add_theme_font_size_override("font_size", roundi(30 * panel_scale))
+	_layout_label(vs_ai_button, Rect2(Vector2(86, 414), Vector2(panel_ref.x - 172, 54)) * panel_scale, roundi(18 * panel_scale))
+	_layout_label(ai_difficulty_button, Rect2(Vector2(86, 476), Vector2(panel_ref.x - 172, 54)) * panel_scale, roundi(18 * panel_scale))
+	_layout_label(professional_button, Rect2(Vector2(86, 544), Vector2(panel_ref.x - 172, 62)) * panel_scale, roundi(19 * panel_scale))
+	_layout_label(start_game_button, Rect2(Vector2(72, 626), Vector2(panel_ref.x - 144, 70)) * panel_scale, roundi(24 * panel_scale))
+	_layout_label(surface_cycle_button, Rect2(Vector2(86, 280), Vector2(panel_ref.x - 172, 58)) * panel_scale, roundi(18 * panel_scale))
+	_layout_label(net_style_button, Rect2(Vector2(86, 348), Vector2(panel_ref.x - 172, 58)) * panel_scale, roundi(18 * panel_scale))
+	_layout_label(music_style_button, Rect2(Vector2(86, 416), Vector2(panel_ref.x - 172, 58)) * panel_scale, roundi(18 * panel_scale))
+	_layout_label(tournament_kind_button, Rect2(Vector2(86, 280), Vector2(panel_ref.x - 172, 58)) * panel_scale, roundi(18 * panel_scale))
+	_layout_label(tournament_size_button, Rect2(Vector2(86, 348), Vector2(panel_ref.x - 172, 58)) * panel_scale, roundi(18 * panel_scale))
+	var team_gap := 12.0
+	var team_width := (panel_ref.x - 184 - team_gap) * 0.5
+	tournament_team1_button.position = Vector2(86, 416) * panel_scale
+	tournament_team1_button.size = Vector2(team_width, 58) * panel_scale
+	tournament_team2_button.position = Vector2(86 + team_width + team_gap, 416) * panel_scale
 	tournament_team2_button.size = tournament_team1_button.size
-	tournament_team1_button.add_theme_font_size_override("font_size", roundi(16 * panel_scale))
-	tournament_team2_button.add_theme_font_size_override("font_size", roundi(16 * panel_scale))
-	tournament_start_button.position = Vector2(100, 722) * panel_scale
-	tournament_start_button.size = Vector2(panel_ref.x - 200, 62) * panel_scale
-	tournament_start_button.add_theme_font_size_override("font_size", roundi(16 * panel_scale))
-	start_game_button.position = Vector2(72, panel_ref.y - 96) * panel_scale
-	start_game_button.size = Vector2(panel_ref.x - 144, 70) * panel_scale
-	start_game_button.add_theme_font_size_override("font_size", roundi(25 * panel_scale))
+	for control in [tournament_team1_button, tournament_team2_button]:
+		control.add_theme_font_size_override("font_size", roundi(16 * panel_scale))
+	_layout_label(tournament_start_button, Rect2(Vector2(86, 486), Vector2(panel_ref.x - 172, 70)) * panel_scale, roundi(19 * panel_scale))
 	menu_title.text = "سه‌توپ"
 	_update_move_count_label()
 
@@ -1068,7 +1261,15 @@ func _layout_tutorial(view_size: Vector2, landscape: bool) -> void:
 	tutorial_continue_button.add_theme_font_size_override("font_size", roundi(22 * panel_scale))
 
 func _minimum_configured_moves() -> int:
-	return PROFESSIONAL_MIN_MOVES if professional_mode else MIN_MOVES_PER_TURN
+	return MIN_MOVES_PER_TURN
+
+func _professional_move_cap() -> int:
+	var damping := SURFACE_DAMPING[selected_surface]
+	if damping <= 1.5:
+		return 2
+	if damping >= 2.5:
+		return 4
+	return 3
 
 func _load_winning_score() -> void:
 	var settings := ConfigFile.new()
@@ -1080,6 +1281,13 @@ func _load_winning_score() -> void:
 		var saved_teams: Array = settings.get_value("game", "teams", [0, 1])
 		if saved_teams.size() >= 2:
 			tournament_team_indices = [clampi(saved_teams[0], 0, 7), clampi(saved_teams[1], 0, 7)]
+		tournament_size = clampi(settings.get_value("game", "tournament_size", 4), 2, 8)
+		if not [2, 4, 8].has(tournament_size):
+			tournament_size = 4
+		selected_net_style = clampi(settings.get_value("game", "net_style", 0), 0, 3)
+		music_style = clampi(settings.get_value("game", "music_style", 0), 0, 2)
+		vs_ai = settings.get_value("game", "vs_ai", false)
+		ai_difficulty = clampi(settings.get_value("game", "ai_difficulty", 2), 1, 3)
 
 func _save_winning_score() -> void:
 	var settings := ConfigFile.new()
@@ -1088,6 +1296,11 @@ func _save_winning_score() -> void:
 	settings.set_value("game", "surface", selected_surface)
 	settings.set_value("game", "tournament_kind", tournament_kind)
 	settings.set_value("game", "teams", tournament_team_indices)
+	settings.set_value("game", "tournament_size", tournament_size)
+	settings.set_value("game", "net_style", selected_net_style)
+	settings.set_value("game", "music_style", music_style)
+	settings.set_value("game", "vs_ai", vs_ai)
+	settings.set_value("game", "ai_difficulty", ai_difficulty)
 	settings.save(USER_SETTINGS_PATH)
 
 func _tournament_team_pool() -> Array:
@@ -1096,24 +1309,108 @@ func _tournament_team_pool() -> Array:
 func _player_display_name(player_idx: int) -> String:
 	if tournament_mode:
 		var pool := _tournament_team_pool()
-		return str(pool[tournament_team_indices[player_idx - 1]])
+		if player_idx == 1:
+			return tournament_remaining[0] if not tournament_remaining.is_empty() else pool[tournament_team_indices[0]]
+		return tournament_opponent if tournament_opponent != "" else pool[tournament_team_indices[1]]
+	if vs_ai and player_idx == 2:
+		return "هوش مصنوعی"
 	return "بازیکن %s" % _fa(player_idx)
+
+func _team_color_for_name(team_name: String) -> Color:
+	var pool := _tournament_team_pool()
+	var team_index := maxi(pool.find(team_name), 0)
+	var palette := [Color("#2677aa"), Color("#b7474d"), Color("#218267"), Color("#7856a6"),
+		Color("#bc7c28"), Color("#3564a5"), Color("#327b9b"), Color("#9b4c72")]
+	return palette[team_index % palette.size()]
+
+func _player_team_color(player_idx: int) -> Color:
+	if not tournament_mode:
+		return Color("#3799d0") if player_idx == 1 else Color("#d95560")
+	return _team_color_for_name(_player_display_name(player_idx))
+
+func _player_mark_text(player_idx: int) -> String:
+	if tournament_mode:
+		var name := _player_display_name(player_idx)
+		return name.substr(0, 1)
+	if vs_ai and player_idx == 2:
+		return "ا"
+	return _fa(player_idx)
 
 func _refresh_tournament_menu() -> void:
 	if surface_cycle_button == null:
 		return
-	surface_cycle_button.text = "🏟 جنس زمین: %s  ·  لمس برای تغییر" % SURFACE_NAMES[selected_surface]
-	tournament_kind_button.text = "جام باشگاه‌ها · تغییر به جام ملت‌ها" if tournament_kind == 1 \
-		else "جام ملت‌ها · تغییر به جام باشگاه‌ها"
+	surface_cycle_button.text = "زمین مسابقه: %s" % SURFACE_NAMES[selected_surface]
+	var net_names := ["کلاسیک", "توری فلزی", "رنگ تیم", "کاغذی"]
+	net_style_button.text = "تور دروازه: %s" % net_names[selected_net_style]
+	var music_names := ["خاموش", "آرکید", "استادیومی"]
+	music_style_button.text = "موسیقی: %s" % music_names[music_style]
+	tournament_kind_button.text = "رقابت: جام باشگاه‌ها" if tournament_kind == 1 else "رقابت: جام ملت‌ها"
+	tournament_size_button.text = "تعداد تیم‌ها: %s" % _fa(tournament_size)
+	vs_ai_button.text = "🤖 مقابل هوش مصنوعی" if vs_ai else "👤 دو نفره"
+	ai_difficulty_button.text = "قدرت حریف: %s" % ["آسان", "معمولی", "سخت"][ai_difficulty - 1]
 	var teams := _tournament_team_pool()
-	tournament_team1_button.text = "آبی · %s" % teams[tournament_team_indices[0]]
-	tournament_team2_button.text = "قرمز · %s" % teams[tournament_team_indices[1]]
+	tournament_team1_button.text = "تیم شما · %s" % teams[tournament_team_indices[0]]
+	tournament_team2_button.text = "حریف آغازین · %s" % teams[tournament_team_indices[1]]
+	tournament_start_button.text = "🏆 شروع جام حذفی · %s تیم · بهترین از ۳" % _fa(tournament_size)
+
+func _set_menu_tab(page: int) -> void:
+	selected_menu_page = clampi(page, 0, 2)
+	for i in range(menu_tab_buttons.size()):
+		if i == selected_menu_page:
+			_style_button(menu_tab_buttons[i], Color(0.45, 0.30, 0.13, 1.0))
+		else:
+			_style_button(menu_tab_buttons[i], Color(0.14, 0.16, 0.18, 1.0))
+	var play_visible := selected_menu_page == 0
+	var cup_visible := selected_menu_page == 1
+	var arena_visible := selected_menu_page == 2
+	for row in menu_row_panels:
+		row.visible = play_visible
+	for control in [move_count_label, moves_down_button, moves_up_button, score_target_label,
+			score_down_button, score_up_button, vs_ai_button, ai_difficulty_button,
+			professional_button, start_game_button]:
+		control.visible = play_visible
+	for control in [tournament_kind_button, tournament_size_button, tournament_team1_button,
+			tournament_team2_button, tournament_start_button]:
+		control.visible = cup_visible
+	for control in [surface_cycle_button, net_style_button, music_style_button]:
+		control.visible = arena_visible
+
+func _toggle_ai_mode() -> void:
+	vs_ai = not vs_ai
+	_save_winning_score()
+	_refresh_tournament_menu()
+
+func _cycle_ai_difficulty() -> void:
+	ai_difficulty = ai_difficulty % 3 + 1
+	_save_winning_score()
+	_refresh_tournament_menu()
+
+func _cycle_tournament_size() -> void:
+	tournament_size = 4 if tournament_size == 2 else 8 if tournament_size == 4 else 2
+	_save_winning_score()
+	_refresh_tournament_menu()
+
+func _cycle_net_style() -> void:
+	selected_net_style = (selected_net_style + 1) % 4
+	_refresh_goal_net()
+	_refresh_tournament_menu()
+	_save_winning_score()
+
+func _cycle_music_style() -> void:
+	music_style = (music_style + 1) % 3
+	_update_music_mix()
+	_refresh_tournament_menu()
+	_save_winning_score()
 
 func _cycle_surface() -> void:
 	selected_surface = (selected_surface + 1) % SURFACE_IDS.size()
 	_update_surface_visuals()
-	_save_winning_score()
+	for ball in balls:
+		ball.linear_damp = SURFACE_DAMPING[selected_surface]
+	_refresh_futsal_markings()
 	_refresh_tournament_menu()
+	_update_move_count_label()
+	_save_winning_score()
 
 func _cycle_tournament_kind() -> void:
 	tournament_kind = 1 - tournament_kind
@@ -1131,14 +1428,32 @@ func _cycle_tournament_team(player_idx: int) -> void:
 
 func _on_tournament_start_pressed() -> void:
 	professional_mode = false
+	vs_ai = true
 	tournament_mode = true
 	tournament_wins = [0, 0]
 	tournament_match = 1
+	tournament_round = 1
+	tournament_champion = ""
+	var pool := _tournament_team_pool()
+	var entrants: Array[String] = []
+	entrants.append(str(pool[tournament_team_indices[0]]))
+	entrants.append(str(pool[tournament_team_indices[1]]))
+	var remaining_pool: Array = []
+	for i in range(pool.size()):
+		if i != tournament_team_indices[0] and i != tournament_team_indices[1]:
+			remaining_pool.append(pool[i])
+	remaining_pool.shuffle()
+	while entrants.size() < tournament_size and not remaining_pool.is_empty():
+		entrants.append(str(remaining_pool.pop_back()))
+	tournament_remaining = entrants
+	tournament_opponent = tournament_remaining[1]
+	_save_winning_score()
 	_launch_configured_game()
 
 func _update_move_count_label() -> void:
 	if move_count_label != null:
-		move_count_label.text = "تعداد حرکت مجاز: %s" % _fa(configured_moves)
+		move_count_label.text = "حرکت در هر نوبت: %s  ·  سقف حرفه‌ای: %s" % [
+			_fa(configured_moves), _fa(_professional_move_cap())]
 	if score_target_label != null:
 		score_target_label.text = "هدف قهرمانی: %s گل" % _fa(winning_score)
 	if moves_down_button != null:
@@ -1179,13 +1494,14 @@ func _show_main_menu() -> void:
 		ball.sleeping = true
 		ball.visible = false
 	menu_overlay.visible = true
+	_set_menu_tab(0)
+	_refresh_tournament_menu()
 	aim_line.visible = false
 	aim_tip.visible = false
 	target_gate_line.visible = false
 	_set_gate(false, true)
 	start_game_button.text = "شروع بازی" if scores == [0, 0] else "شروع دوباره"
-	_layout_hud(get_viewport().get_visible_rect().size,
-		get_viewport().get_visible_rect().size.x > get_viewport().get_visible_rect().size.y)
+	_layout_hud(get_viewport().get_visible_rect().size, false)
 
 func _on_menu_pressed() -> void:
 	_show_main_menu()
@@ -1198,11 +1514,13 @@ func _on_start_game_pressed() -> void:
 func _on_professional_mode_pressed() -> void:
 	tournament_mode = false
 	professional_mode = true
-	configured_moves = maxi(configured_moves, PROFESSIONAL_MIN_MOVES)
+	configured_moves = clampi(configured_moves, MIN_MOVES_PER_TURN, _professional_move_cap())
 	_update_move_count_label()
 	_launch_configured_game()
 
 func _launch_configured_game() -> void:
+	if professional_mode:
+		configured_moves = clampi(configured_moves, MIN_MOVES_PER_TURN, _professional_move_cap())
 	moves_per_turn = configured_moves
 	goal_meter_bg.visible = not professional_mode
 	goal_meter.visible = not professional_mode
@@ -1212,7 +1530,12 @@ func _launch_configured_game() -> void:
 		target_gate_line.visible = false
 		goal_meter.size.x = 0.0
 	menu_overlay.visible = false
-	if not _tutorial_has_been_seen():
+	tutorial_overlay.visible = false
+	if professional_mode and not _tutorial_has_been_seen():
+		tutorial_text.text = "۱) فلیک رو به جلو بزنید؛ فشار انگشت قدرت شوت را تعیین می‌کند، نه نگه‌داشتن یا کشیدن طولانی.\n\n" \
+			+ "۲) هر شوت باید از شکاف دو توپ دیگر عبور کند؛ برخورد با توپ یا نرسیدن به شکاف خطاست.\n\n" \
+			+ "۳) پس از عبور توپ از خط میانی، مسیر دروازه باز می‌شود. گل پیش از حرکت %s پذیرفته نیست؛ سقف این زمین %s حرکت در نوبت است." % [
+				_fa(mini(3, moves_per_turn)), _fa(moves_per_turn)]
 		tutorial_overlay.visible = true
 		return
 	_start_game_now()
@@ -1237,8 +1560,9 @@ func _start_game_now() -> void:
 	_start_new_match()
 
 func _show_victory_screen() -> void:
-	victory_title.text = ("قهرمان جام: %s" if tournament_mode else "قهرمان: %s") \
-		% _player_display_name(current_player)
+	var champion_name := tournament_champion if tournament_mode and tournament_champion != "" \
+		else _player_display_name(current_player)
+	victory_title.text = ("قهرمان جام: %s" if tournament_mode else "قهرمان: %s") % champion_name
 	if tournament_mode:
 		victory_summary.text = "نتیجهٔ سری حذفی: %s — %s" % [
 			_fa(tournament_wins[current_player - 1]), _fa(tournament_wins[1 if current_player == 1 else 0])
@@ -1253,13 +1577,16 @@ func _show_victory_screen() -> void:
 func _on_victory_replay_pressed() -> void:
 	victory_overlay.visible = false
 	if tournament_mode:
-		tournament_wins = [0, 0]
-		tournament_match = 1
-	_start_new_match()
+		_on_tournament_start_pressed()
+	else:
+		_start_new_match()
 
 func _spawn_paper_confetti() -> void:
-	var palette := [Color(1.0, 0.85, 0.48), Color(0.40, 0.78, 1.0),
-		Color(1.0, 0.42, 0.44), Color(0.38, 0.91, 0.63), Color(0.83, 0.62, 1.0)]
+	var winner_color := _team_color_for_name(tournament_champion) if tournament_mode \
+		and tournament_champion != "" else _player_team_color(current_player)
+	var runner_color := _player_team_color(2 if current_player == 1 else 1)
+	var palette := [winner_color, winner_color.lightened(0.32), runner_color,
+		runner_color.lightened(0.28), Color(1.0, 0.86, 0.52)]
 	var view_size := get_viewport().get_visible_rect().size
 	for i in range(110):
 		var piece := ColorRect.new()
@@ -1357,6 +1684,28 @@ func _spawn_balls() -> void:
 		])
 		visual_root.add_child(crease)
 		ball_crease_lines.append(crease)
+		var crest_points := PackedVector2Array()
+		for crest_i in range(20):
+			var crest_angle := float(crest_i) * TAU / 20.0
+			crest_points.append(Vector2.from_angle(crest_angle) * 14.0)
+		var crest := Polygon2D.new()
+		crest.polygon = crest_points
+		crest.color = Color(0.16, 0.48, 0.72, 0.94)
+		visual_root.add_child(crest)
+		ball_team_crests.append(crest)
+		var team_mark := Label.new()
+		team_mark.text = "۱"
+		team_mark.position = Vector2(-13, -16)
+		team_mark.size = Vector2(26, 32)
+		team_mark.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		team_mark.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		team_mark.add_theme_font_size_override("font_size", 19)
+		team_mark.add_theme_color_override("font_color", Color.WHITE)
+		team_mark.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.7))
+		team_mark.add_theme_constant_override("outline_size", 2)
+		team_mark.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		visual_root.add_child(team_mark)
+		ball_team_marks.append(team_mark)
 		ball_visuals.append(visual_root)
 
 		ball.body_entered.connect(_on_ball_body_entered.bind(ball))
@@ -1372,9 +1721,11 @@ func _start_new_match() -> void:
 
 func _start_turn(player_idx: int) -> void:
 	current_player = player_idx
-	for crease in ball_crease_lines:
-		crease.default_color = Color(0.35, 0.72, 1.0, 0.72) if current_player == 1 \
-			else Color(1.0, 0.40, 0.42, 0.72)
+	for i in range(ball_crease_lines.size()):
+		ball_crease_lines[i].default_color = _player_team_color(current_player).lightened(0.10)
+		ball_team_crests[i].color = _player_team_color(current_player)
+		ball_team_marks[i].text = _player_mark_text(current_player)
+	_refresh_goal_net()
 	moves_left = moves_per_turn
 	state = GameState.TURN_SETUP
 	active_ball = null
@@ -1417,6 +1768,60 @@ func _start_turn(player_idx: int) -> void:
 	_show_banner("نوبت %s" % _player_display_name(current_player),
 		Color(0.45, 0.80, 1.0) if current_player == 1 else Color(1.0, 0.52, 0.52))
 	_update_hud()
+	if current_player == 2 and (vs_ai or tournament_mode):
+		call_deferred("_queue_ai_turn")
+
+func _queue_ai_turn() -> void:
+	if ai_turn_pending or current_player != 2 or (not vs_ai and not tournament_mode):
+		return
+	ai_turn_pending = true
+	while state == GameState.TURN_SETUP:
+		await get_tree().create_timer(0.08).timeout
+		if current_player != 2 or (not vs_ai and not tournament_mode):
+			ai_turn_pending = false
+			return
+	if state != GameState.WAITING_FOR_INPUT or current_player != 2:
+		ai_turn_pending = false
+		return
+	await get_tree().create_timer(0.45 if ai_difficulty == 1 else 0.72).timeout
+	if state != GameState.WAITING_FOR_INPUT or current_player != 2:
+		ai_turn_pending = false
+		return
+	var best_ball: RigidBody2D = null
+	var best_others: Array[RigidBody2D] = []
+	var best_cost := INF
+	for candidate in balls:
+		var obstacles: Array[RigidBody2D] = []
+		for other in balls:
+			if other != candidate:
+				obstacles.append(other)
+		if obstacles.size() != 2:
+			continue
+		var gap_midpoint: Vector2 = (obstacles[0].global_position + obstacles[1].global_position) * 0.5
+		var goal_aim := Vector2(GOAL_RECT.get_center().x, GOAL_RECT.end.y + BALL_RADIUS * 2.0)
+		var cost := candidate.global_position.distance_to(gap_midpoint) \
+			+ absf(candidate.global_position.x - goal_aim.x) * 0.16
+		if gap_midpoint.y >= candidate.global_position.y:
+			cost += 5000.0
+		if cost < best_cost:
+			best_cost = cost
+			best_ball = candidate
+			best_others = obstacles
+	if best_ball == null:
+		ai_turn_pending = false
+		return
+	var midpoint: Vector2 = (best_others[0].global_position + best_others[1].global_position) * 0.5
+	var through_direction := (midpoint - best_ball.global_position).normalized()
+	if through_direction.length_squared() < 0.001:
+		through_direction = Vector2.UP
+	var target := midpoint + through_direction * 620.0
+	var aim := (target - best_ball.global_position).normalized()
+	var spread := [0.20, 0.09, 0.025][clampi(ai_difficulty - 1, 0, 2)]
+	aim = aim.rotated(randf_range(-spread, spread))
+	var power := [2050.0, 2700.0, 3150.0][clampi(ai_difficulty - 1, 0, 2)]
+	active_ball = best_ball
+	ai_turn_pending = false
+	_shoot_ball(best_ball, aim * power)
 
 func _switch_turn() -> void:
 	_start_turn(2 if current_player == 1 else 1)
@@ -1620,6 +2025,7 @@ func _shoot_ball(ball: RigidBody2D, impulse: Vector2) -> void:
 	_update_hud()
 
 func _process(delta: float) -> void:
+	_fill_music_buffer()
 	if main_camera == null:
 		return
 	if shake_strength > 0.15:
@@ -1695,7 +2101,7 @@ func _physics_process(_delta: float) -> void:
 		and _is_gate_open_for(cur):
 		if not gap_crossed:
 			_finish_shot(ShotKind.FOUL, "توپ باید از شکاف بین دو توپ عبور کند؛ نوبت سوخت.")
-		elif professional_mode and _current_turn_move_number() < PROFESSIONAL_MIN_MOVES:
+		elif professional_mode and _current_turn_move_number() < mini(3, moves_per_turn):
 			_finish_shot(ShotKind.FOUL, _professional_early_goal_message())
 		else:
 			_finish_shot(ShotKind.GOAL)
@@ -1751,10 +2157,11 @@ func _judge_shot() -> void:
 	_finish_shot(ShotKind.PASS)
 
 func _professional_early_goal_message() -> String:
+	var required_move := mini(3, moves_per_turn)
 	var messages := [
-		"عجله نکن، مرد! گل از حرکت سوم حساب می‌شود؛ نوبت سوخت.",
-		"یواش قهرمان! هنوز حرکت سوم نرسیده؛ گل قبول نیست!",
-		"چه عجله‌ای! اول سه حرکت، بعد جشن گل؛ نوبت سوخت."
+		"عجله نکن، مرد! گل از حرکت %s حساب می‌شود؛ نوبت سوخت." % _fa(required_move),
+		"یواش قهرمان! هنوز حرکت %s نرسیده؛ گل قبول نیست!" % _fa(required_move),
+		"چه عجله‌ای! اول %s حرکت، بعد جشن گل؛ نوبت سوخت." % _fa(required_move)
 	]
 	return messages.pick_random()
 
@@ -1807,15 +2214,53 @@ func _finish_shot(kind: ShotKind, foul_reason: String = "") -> void:
 func _finish_tournament_match() -> void:
 	tournament_wins[current_player - 1] += 1
 	_update_hud()
-	if tournament_wins[current_player - 1] >= 2:
+	if tournament_wins[current_player - 1] < 2:
+		state = GameState.TRANSITION
+		status_label.text = "%s این بازی را برد؛ یک برد تا صعود!" % _player_display_name(current_player)
+		_show_banner("یک برد تا صعود!", Color(1.0, 0.82, 0.38))
+		_delayed_tournament_match(2.0)
+		return
+	if current_player != 1:
+		var survivors: Array[String] = []
+		for team_index in range(1, tournament_remaining.size()):
+			survivors.append(tournament_remaining[team_index])
+		if survivors.is_empty():
+			survivors.append(_player_display_name(current_player))
+		while survivors.size() > 1:
+			var next_survivors: Array[String] = []
+			for i in range(0, survivors.size(), 2):
+				if i + 1 < survivors.size():
+					next_survivors.append(survivors[i] if randf() < 0.5 else survivors[i + 1])
+				else:
+					next_survivors.append(survivors[i])
+			survivors = next_survivors
+		tournament_champion = survivors[0]
 		state = GameState.MATCH_OVER
-		status_label.text = "%s قهرمان جام شد!" % _player_display_name(current_player)
-		_show_banner("قهرمان جام: %s" % _player_display_name(current_player), Color(0.3, 1.0, 0.5))
+		status_label.text = "%s شما را از جام حذف کرد." % tournament_champion
+		_show_banner("پایان رقابت", Color(1.0, 0.48, 0.42))
 		_show_victory_screen()
 		return
+	if tournament_remaining.size() <= 2:
+		tournament_champion = tournament_remaining[0] if not tournament_remaining.is_empty() else _player_display_name(current_player)
+		state = GameState.MATCH_OVER
+		status_label.text = "%s قهرمان جام شد!" % tournament_champion
+		_show_banner("قهرمان جام: %s" % tournament_champion, Color(0.3, 1.0, 0.5))
+		_show_victory_screen()
+		return
+	var next_round: Array[String] = [tournament_remaining[0]]
+	for i in range(2, tournament_remaining.size(), 2):
+		if i + 1 < tournament_remaining.size():
+			next_round.append(tournament_remaining[i] if randf() < 0.5 else tournament_remaining[i + 1])
+		else:
+			next_round.append(tournament_remaining[i])
+	tournament_remaining = next_round
+	tournament_round += 1
+	tournament_opponent = tournament_remaining[1]
+	tournament_wins = [0, 0]
+	tournament_match = 0
 	state = GameState.TRANSITION
-	status_label.text = "%s این بازی را برد؛ یک برد تا جام!" % _player_display_name(current_player)
-	_show_banner("یک برد تا جام!", Color(1.0, 0.82, 0.38))
+	status_label.text = "صعود کردی! حریف بعدی: %s" % tournament_opponent
+	_show_banner("صعود به دور بعد!", Color(1.0, 0.82, 0.38))
 	_delayed_tournament_match(2.0)
 
 func _delayed_tournament_match(delay_sec: float) -> void:
@@ -1849,8 +2294,11 @@ func _update_hud() -> void:
 	p2_score_value.text = "%s/%s" % [_fa(scores[1]), _fa(winning_score)]
 
 	var gate_txt := "آزاد" if gate_open else "مسدود"
-	var cup_score := " | جام %s–%s" % [_fa(tournament_wins[0]), _fa(tournament_wins[1])] \
-		if tournament_mode else ""
+	var total_tournament_rounds := 1 if tournament_size == 2 else 2 if tournament_size == 4 else 3
+	var cup_score := " | جام %s/%s · %s–%s" % [
+		_fa(tournament_round), _fa(total_tournament_rounds),
+		_fa(tournament_wins[0]), _fa(tournament_wins[1])
+	] if tournament_mode else ""
 	turn_info_label.text = "نوبت %s | حرکت %s/%s | مسیر %s%s" % [
 		_player_display_name(current_player), _fa(moves_left), _fa(moves_per_turn), gate_txt, cup_score
 	]

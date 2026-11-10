@@ -61,9 +61,18 @@
   button:focus-visible{outline:3px solid #ffe4a7;outline-offset:3px}
   #move-minus,#move-plus,#score-minus,#score-plus{width:54px;padding:8px;font-size:1.5rem;border-radius:13px;background:linear-gradient(180deg,#333c47,#20262e);color:#f6e8cf}
   #start-game,#tutorial-continue{width:min(100%,430px);font-weight:800;color:#23170a;background:linear-gradient(180deg,#ffd789,#d79f4d);font-size:1.08rem}
+  .menu-tabs{display:flex;gap:7px;width:min(100%,430px);margin:12px auto 17px;padding:5px;border:1px solid rgba(255,255,255,.09);border-radius:15px;background:rgba(6,9,12,.52)}
+  .menu-tabs button{flex:1;min-width:0;padding:8px 4px;min-height:40px;border-radius:11px;background:transparent;border-color:transparent;color:#bdb6aa;font-size:.82rem;box-shadow:none}
+  .menu-tabs button.active{color:#271b0d;background:linear-gradient(180deg,#f1d393,#c89449);border-color:rgba(255,231,180,.46);box-shadow:0 5px 16px rgba(0,0,0,.3)}
+  .menu-page{display:none;animation:page-in .22s ease-out}
+  .menu-page.active{display:block}
+  @keyframes page-in{from{opacity:.35;transform:translateY(5px)}to{opacity:1;transform:none}}
   .setup-select{display:flex;align-items:center;justify-content:space-between;gap:12px;width:min(100%,430px);margin:0 auto 9px;padding:8px 12px;box-sizing:border-box;
     border:1px solid rgba(255,255,255,.09);border-radius:13px;background:rgba(6,9,12,.38);color:#d9d2c6;font-size:.86rem;text-align:right}
   .setup-select select{max-width:68%;padding:7px 10px;border:1px solid rgba(232,182,94,.22);border-radius:10px;background:#20262d;color:#f6e8cf;font:inherit}
+  .mode-pick{display:flex;gap:8px;width:min(100%,430px);margin:0 auto 10px}
+  .mode-pick button{flex:1;padding:9px 8px;min-height:48px;background:linear-gradient(135deg,#283641,#17212a);color:#ece5d8}
+  .mode-pick button.selected{border-color:#76c8ed;color:#aee5ff;box-shadow:0 0 18px rgba(75,186,232,.16)}
   .team-picks{display:flex;gap:8px;width:min(100%,430px);margin:0 auto 10px}
   .team-picks button{flex:1;min-width:0;padding:8px 5px;min-height:42px;font-size:.82rem;background:linear-gradient(180deg,#343d48,#20262e);color:#f6e8cf}
   #tournament-start{width:min(100%,430px);margin:0 auto 14px;color:#f9efd8;background:linear-gradient(130deg,#173b51,#236b87 52%,#47a4b0);border-color:rgba(146,224,240,.45);font-weight:800}
@@ -83,31 +92,34 @@
     <div class="brand-mark" aria-hidden="true"><span class="paper-ball" style="--r:-12deg"></span><i class="brand-link"></i><span class="paper-ball" style="--r:8deg"></span><i class="brand-link"></i><span class="paper-ball" style="--r:18deg"></span></div>
     <h1>سه‌توپ</h1>
     <p>سه توپ، یک میز، یک قهرمان</p>
-    <div class="move-row">
-      <button id="move-minus" aria-label="کم کردن حرکت">−</button>
-      <strong id="move-count">۳ حرکت در هر نوبت</strong>
-      <button id="move-plus" aria-label="زیاد کردن حرکت">+</button>
+    <nav class="menu-tabs" aria-label="بخش‌های منو">
+      <button class="active" data-page="play">بازی</button><button data-page="cup">جام</button><button data-page="arena">زمین و صدا</button>
+    </nav>
+    <div class="menu-page active" id="page-play">
+      <div class="move-row"><button id="move-minus" aria-label="کم کردن حرکت">−</button><strong id="move-count">۳ حرکت در هر نوبت</strong><button id="move-plus" aria-label="زیاد کردن حرکت">+</button></div>
+      <div class="move-row score-row"><button id="score-minus" aria-label="کم کردن گل لازم برای برد">−</button><strong id="score-target">هدف قهرمانی: ۳ گل</strong><button id="score-plus" aria-label="زیاد کردن گل لازم برای برد">+</button></div>
+      <div class="mode-pick"><button id="vs-ai" type="button">👤 دو نفره</button><button id="ai-difficulty" type="button">هوش مصنوعی: معمولی</button></div>
+      <button id="professional-mode" class="pro-mode-button" type="button" aria-label="شروع بازی حرفه‌ای">
+        <span class="mode-icon" aria-hidden="true">✦</span><span class="mode-copy"><strong>ورود به میدان حرفه‌ای</strong><small>بازی سریع · قدرت با فشار یا فلیک</small></span>
+      </button>
+      <button id="start-game">شروع مسابقه</button>
     </div>
-    <div class="move-row score-row">
-      <button id="score-minus" aria-label="کم کردن گل لازم برای برد">−</button>
-      <strong id="score-target">هدف قهرمانی: ۳ گل</strong>
-      <button id="score-plus" aria-label="زیاد کردن گل لازم برای برد">+</button>
+    <div class="menu-page" id="page-cup">
+      <label class="setup-select"><span>رقابت</span><select id="tournament-kind"><option value="national">جام ملت‌ها</option><option value="club">جام باشگاه‌ها</option></select></label>
+      <div class="setup-select"><span>تعداد تیم‌ها</span><button id="tournament-size" type="button">۴ تیم</button></div>
+      <div class="team-picks"><button id="team1-cycle" type="button">تیم شما: ایران</button><button id="team2-cycle" type="button">حریف آغازین: ژاپن</button></div>
+      <p class="note">هر رویارویی بهترین از سه بازی است؛ بازی‌های سایر تیم‌ها شبیه‌سازی می‌شوند.</p>
+      <button id="tournament-start" type="button">🏆 آغاز جام</button>
     </div>
-    <label class="setup-select"><span>جنس زمین</span><select id="surface-select">
-      <option value="grass">چمن</option><option value="indoor">سالن</option><option value="asphalt">آسفالت</option>
-      <option value="table">میز چوبی</option><option value="glass">شیشه</option><option value="rug">فرش</option><option value="carpet">موکت</option>
-    </select></label>
-    <label class="setup-select"><span>جام مسابقات</span><select id="tournament-kind">
-      <option value="national">جام ملت‌ها</option><option value="club">جام باشگاه‌ها</option>
-    </select></label>
-    <div class="team-picks"><button id="team1-cycle" type="button">تیم آبی: ایران</button><button id="team2-cycle" type="button">تیم قرمز: ژاپن</button></div>
-    <button id="tournament-start" type="button">🏆 شروع جام حذفی دونفره · بهترین از ۳ بازی</button>
-    <button id="professional-mode" class="pro-mode-button" type="button" aria-label="شروع بازی حرفه‌ای">
-      <span class="mode-icon" aria-hidden="true">✦</span>
-      <span class="mode-copy"><strong>ورود به میدان حرفه‌ای</strong><small>۳ حرکت حداقل · قدرت با فشار و فلیک</small></span>
-    </button>
-    <button id="start-game">شروع بازی</button>
-    <p class="note">در صفحهٔ افقی، میز خودکار می‌چرخد.</p>
+    <div class="menu-page" id="page-arena">
+      <label class="setup-select"><span>زمین مسابقه</span><select id="surface-select">
+        <option value="grass">چمن طبیعی</option><option value="indoor">سالن فوتسال</option><option value="asphalt">آسفالت</option>
+        <option value="table">میز چوبی</option><option value="glass">شیشه</option><option value="rug">فرش</option><option value="carpet">موکت</option>
+      </select></label>
+      <label class="setup-select"><span>تور دروازه</span><select id="net-style"><option value="classic">کلاسیک</option><option value="mesh">توری فلزی</option><option value="team">رنگ تیم</option><option value="paper">کاغذی</option></select></label>
+      <label class="setup-select"><span>موسیقی زمینه</span><select id="music-style"><option value="off">خاموش</option><option value="arcade">آرکید</option><option value="stadium">استادیومی</option></select></label>
+    </div>
+    <p class="note">راهنمای کامل حرفه‌ای فقط در نخستین ورود نمایش داده می‌شود.</p>
   </section>
 </div>
 <div id="winner-screen" class="hidden" role="dialog" aria-modal="true" aria-labelledby="winner-name">
@@ -184,7 +196,7 @@ const VMAX = MAX_DRAG * P.imp;
 const FA=["۰","۱","۲","۳","۴","۵","۶","۷","۸","۹"];
 const fa=n=>String(n).split("").map(c=>FA[+c]??c).join("");
 const SURFACES=[
-  {id:"grass",name:"چمن",damp:2.55}, {id:"indoor",name:"سالن",damp:1.75},
+  {id:"grass",name:"چمن",damp:2.55}, {id:"indoor",name:"سالن فوتسال",damp:1.75},
   {id:"asphalt",name:"آسفالت",damp:2.05}, {id:"table",name:"میز چوبی",damp:2.0},
   {id:"glass",name:"شیشه",damp:1.35}, {id:"rug",name:"فرش",damp:3.25},
   {id:"carpet",name:"موکت",damp:2.85}
@@ -197,6 +209,11 @@ let selectedSurface="table", tournamentKind="national", teamIndices=[0,1];
 try{selectedSurface=localStorage.getItem("se-toop-surface")||selectedSurface;}catch(e){}
 if(!SURFACES.some(s=>s.id===selectedSurface))selectedSurface="table";
 let tournamentMode=false,tournamentMatch=1,tournamentWins=[0,0];
+let tournamentSize=4,tournamentRound=1,tournamentRemaining=[],tournamentOpponent="",tournamentChampion="";
+let vsAI=false,aiDifficulty=1,netStyle="classic",musicStyle="off",backgroundSource=null;
+try{netStyle=localStorage.getItem("se-toop-net")||netStyle;musicStyle=localStorage.getItem("se-toop-music")||musicStyle;}catch(e){}
+if(!["classic","mesh","team","paper"].includes(netStyle))netStyle="classic";
+if(!["off","arcade","stadium"].includes(musicStyle))musicStyle="off";
 
 // ------------------------------ وضعیت
 const ST = {MENU:0, SETUP:1, WAIT:2, MOVING:3, TRANS:4, OVER:5};
@@ -305,14 +322,39 @@ function startTurn(p){
   statusText = "";
   showBanner("نوبت " + playerName(p), p===1 ? "#73c8ff" : "#ff8585");
   updateHud();
+  queueAITurn();
 }
 function startMatch(){
   scores=[0,0];
   const openingPlayer=tournamentMode&&tournamentMatch%2===0?2:1;
   startTurn(openingPlayer);
 }
+function queueAITurn(){
+  if(player!==2||(!vsAI&&!tournamentMode))return;
+  afterDelay(.25,()=>{
+    if(state===ST.SETUP){queueAITurn();return;}
+    if(state!==ST.WAIT||player!==2)return;
+    let ball=null,others=null,bestCost=Infinity;
+    for(const candidate of balls){
+      const blockers=balls.filter(b=>b!==candidate);
+      const gap={x:(blockers[0].p.x+blockers[1].p.x)/2,y:(blockers[0].p.y+blockers[1].p.y)/2};
+      let cost=Math.hypot(candidate.p.x-gap.x,candidate.p.y-gap.y)+Math.abs(candidate.p.x-540)*.16;
+      if(gap.y>=candidate.p.y)cost+=5000;
+      if(cost<bestCost){bestCost=cost;ball=candidate;others=blockers;}
+    }
+    if(!ball)return;
+    const gx=(others[0].p.x+others[1].p.x)/2,gy=(others[0].p.y+others[1].p.y)/2;
+    const dx=gx-ball.p.x,dy=gy-ball.p.y,len=Math.hypot(dx,dy)||1;
+    const ux=dx/len,uy=dy/len,aimX=gx+ux*620-ball.p.x,aimY=gy+uy*620-ball.p.y;
+    const aimLen=Math.hypot(aimX,aimY)||1;
+    const jitter=aiDifficulty===1?.18:aiDifficulty===2?.07:.018;
+    const angle=Math.atan2(aimY,aimX)+rnd(-jitter,jitter);
+    const power=[1050,1850,2500][aiDifficulty-1];
+    activeBall=ball;shoot(ball,{x:Math.cos(angle)*power,y:Math.sin(angle)*power});
+  });
+}
 function updateHud(){
-  const cupText=tournamentMode?" | جام "+fa(tournamentWins[0])+"–"+fa(tournamentWins[1])+"/۳":"";
+  const cupText=tournamentMode?" | جام · دور "+fa(tournamentRound)+"/"+fa(Math.log2(tournamentSize))+"":"";
   turnText = "نوبت " + playerName(player) + " | حرکت " + fa(movesLeft) + "/" + fa(movesPerTurn)
            + " | هدف " + fa(winningScore) + " | مسیر " + (gateOpen ? "آزاد" : "بسته")+cupText;
 }
@@ -326,7 +368,9 @@ function burst(x,y,n,color,life,vmin,vmax){
   }
 }
 function paperConfetti(n=120){
-  const colors=["#f7e8b5","#73c8ff","#ff8585","#55d69e","#d9a7ff","#ffb95c"];
+  const winnerColor=tournamentMode&&tournamentChampion?teamColorForName(tournamentChampion):playerColor(player);
+  const otherColor=playerColor(player===1?2:1);
+  const colors=[winnerColor,mix(winnerColor,"#ffffff",.30),otherColor,mix(otherColor,"#ffffff",.24),"#f7e8b5"];
   for(let i=0;i<n;i++){
     parts.push({x:rnd(TABLE.x,TABLE.x+TABLE.w),y:rnd(TABLE.y-180,TABLE.y+220),
       vx:rnd(-180,180),vy:rnd(-380,-80),life:rnd(1.8,3.2),max:3.2,
@@ -432,7 +476,7 @@ function checkShot(){
   if(act.y+R <= GOAL.y+GOAL.h+6 && act.x-R>=GOAL.x && act.x+R<=GOAL.x+GOAL.w && gapOpenAt(act)){
     if(!gapCrossed){
       finish("FOUL","توپ باید از شکاف بین دو توپ عبور کند؛ نوبت سوخت.");
-    } else if(professionalMode && currentTurnMoveNumber()<PROFESSIONAL_MIN_MOVES){
+    } else if(professionalMode && currentTurnMoveNumber()<Math.min(3,movesPerTurn)){
       finish("FOUL",professionalEarlyGoalMessage());
     } else {
       burst(GOAL.x+GOAL.w/2, GOAL.y+40, 48, "#ffe066", 1.1, 220, 520);
@@ -466,38 +510,71 @@ function professionalEarlyGoalMessage(){
 }
 
 function showVictoryScreen(){
-  winnerNameEl.textContent=playerName(player);
+  const winner=tournamentMode?tournamentChampion:playerName(player);
+  winnerNameEl.textContent=winner;
   document.querySelector(".winner-kicker").textContent=tournamentMode?"قهرمان جام سه‌توپ":"قهرمان مسابقه";
   winnerSummaryEl.textContent=tournamentMode
-    ?"سری حذفی را با نتیجهٔ "+fa(tournamentWins[player-1])+"–"+fa(tournamentWins[player===1?1:0])+" برد؛ جام مال توست!"
+    ?"قهرمانی در جام "+(tournamentKind==="club"?"باشگاه‌ها":"ملت‌ها")+"؛ "+fa(tournamentSize)+" تیم در رقابت بودند."
     :"قهرمانی با نتیجهٔ "+fa(scores[player-1])+" گل؛ چه بازی پرهیجانی!";
-  winnerScreenEl.classList.remove("hidden");
-  paperConfetti(150);
+  winnerScreenEl.classList.remove("hidden");paperConfetti(180);
 }
-function finishTournamentMatch(){
-  tournamentWins[player-1]++;
-  updateHud();
-  if(tournamentWins[player-1]>=2){
-    state=ST.OVER;statusText=playerName(player)+" قهرمان جام شد!";
-    showBanner("قهرمان جام: "+playerName(player),"#4dff80");showVictoryScreen();return;
+function finishTournamentMatch(winner){
+  tournamentWins[winner-1]++;
+  if(tournamentWins[winner-1]<2){
+    state=ST.TRANS;statusText=playerName(winner)+" برد اول را گرفت؛ یک برد تا صعود!";
+    showBanner("یک برد تا صعود!", "#ffd477");
+    afterDelay(1.7,()=>{if(state===ST.TRANS){tournamentMatch++;startMatch();}});
+    return;
   }
-  state=ST.TRANS;statusText=playerName(player)+" این بازی را برد؛ هنوز یک برد تا جام!";
-  showBanner("یک برد تا جام!", "#ffd477");
+  if(winner!==1){
+    let survivors=tournamentRemaining.slice(1);
+    if(!survivors.length)survivors=[tournamentOpponent];
+    while(survivors.length>1){
+      const next=[];
+      for(let i=0;i<survivors.length;i+=2)next.push(i+1<survivors.length?(Math.random()<.5?survivors[i]:survivors[i+1]):survivors[i]);
+      survivors=next;
+    }
+    tournamentChampion=survivors[0];state=ST.OVER;
+    statusText=""+tournamentChampion+" قهرمان جام شد!";
+    showBanner("قهرمان جام: "+tournamentChampion,"#4dff80");showVictoryScreen();return;
+  }
+  if(tournamentRemaining.length<=2){
+    tournamentChampion=tournamentRemaining[0];state=ST.OVER;
+    statusText=tournamentChampion+" قهرمان جام شد!";
+    showBanner("قهرمان جام: "+tournamentChampion,"#4dff80");showVictoryScreen();return;
+  }
+  const next=[tournamentRemaining[0]];
+  for(let i=2;i<tournamentRemaining.length;i+=2){
+    const a=tournamentRemaining[i],b=tournamentRemaining[i+1];
+    next.push(Math.random()<.5?a:b);
+  }
+  tournamentRemaining=next;tournamentRound++;tournamentMatch=0;tournamentWins=[0,0];tournamentOpponent=tournamentRemaining[1];
+  state=ST.TRANS;statusText="صعود کردی! حریف بعدی: "+tournamentOpponent;
+  showBanner("صعود به دور بعد!", "#ffd477");
   afterDelay(2,()=>{if(state===ST.TRANS){tournamentMatch++;startMatch();}});
+}
+function beginTournament(replay=false){
+  tournamentMode=true;vsAI=true;tournamentRound=1;tournamentMatch=1;tournamentWins=[0,0];tournamentChampion="";
+  const pool=[...teamPool()];const human=pool[teamIndices[0]],preferred=pool[teamIndices[1]];
+  const rest=pool.filter((_,i)=>i!==teamIndices[0]&&i!==teamIndices[1]);
+  for(let i=rest.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[rest[i],rest[j]]=[rest[j],rest[i]];}
+  tournamentRemaining=[human,preferred,...rest.slice(0,Math.max(0,tournamentSize-2))];
+  tournamentOpponent=tournamentRemaining[1];scores=[0,0];
+  if(replay)startMatch();else hideMenuAndStart(false);
 }
 function finish(kind, reason){
   if(kind==="GOAL"){
     scores[player-1] += 1;
     updateHud();
     if(scores[player-1] >= winningScore){
-      if(tournamentMode){finishTournamentMatch();return;}
+      if(tournamentMode){finishTournamentMatch(player);return;}
       state = ST.OVER;
-      statusText = "بازیکن " + fa(player) + " برنده شد!";
-      showBanner("قهرمان: بازیکن " + fa(player), "#4dff80");
+      statusText = playerName(player)+" برنده شد!";
+      showBanner("قهرمان: "+playerName(player), "#4dff80");
       showVictoryScreen();
     } else {
       state = ST.TRANS;
-      statusText = "گل برای بازیکن " + fa(player) + "!";
+      statusText = "گل برای "+playerName(player)+"!";
       showBanner("گلللل!", "#4dff80");
       afterDelay(1.8, ()=>{ if(state===ST.TRANS) startTurn(player===1?2:1); });
     }
@@ -520,6 +597,7 @@ function finish(kind, reason){
     state = ST.WAIT;
     statusText = "";
     updateHud();
+    queueAITurn();
   }
 }
 function aftermath(reason){
@@ -551,30 +629,52 @@ const tournamentKindEl=document.getElementById("tournament-kind");
 const team1CycleEl=document.getElementById("team1-cycle");
 const team2CycleEl=document.getElementById("team2-cycle");
 const tournamentStartEl=document.getElementById("tournament-start");
+const tournamentSizeEl=document.getElementById("tournament-size");
+const vsAiEl=document.getElementById("vs-ai");
+const aiDifficultyEl=document.getElementById("ai-difficulty");
+const netStyleEl=document.getElementById("net-style");
+const musicStyleEl=document.getElementById("music-style");
 const startGameEl = document.getElementById("start-game");
-let scale=1, ox=0, oy=0, dpr=1, landscape=false;
+let scale=1, ox=0, oy=0, dpr=1;
 
 function screenPoint(e){
   const r=cv.getBoundingClientRect();
   return {x:(e.clientX-r.left-ox)/scale,y:(e.clientY-r.top-oy)/scale};
 }
-function toDesign(e){
-  const p=screenPoint(e);
-  return landscape ? {x:p.y,y:H-p.x} : p;
+function toDesign(e){return screenPoint(e);}
+function hitMenu(p){return p.x>=968&&p.x<=1062&&p.y<=100;}
+function professionalMoveCap(){
+  const damping=(SURFACES.find(s=>s.id===selectedSurface)||SURFACES[3]).damp;
+  return damping<=1.5?2:damping>=2.5?4:3;
 }
-function hitMenu(p){
-  return landscape ? p.x>=1760&&p.x<=1895&&p.y<=95 : p.x>=968&&p.x<=1062&&p.y<=100;
-}
-function minimumMoveCount(){ return professionalMode?PROFESSIONAL_MIN_MOVES:MIN_MOVES_PER_TURN; }
+function minimumMoveCount(){ return professionalMode?professionalMoveCap():MIN_MOVES_PER_TURN; }
 function teamPool(){return TEAM_POOLS[tournamentKind]||TEAM_POOLS.national;}
-function playerName(index){return tournamentMode?teamPool()[teamIndices[index-1]]:"بازیکن "+fa(index);}
+function playerName(index){
+  if(tournamentMode)return index===1?(tournamentRemaining[0]||teamPool()[teamIndices[0]]):tournamentOpponent;
+  if(vsAI&&index===2)return "هوش مصنوعی";
+  return "بازیکن "+fa(index);
+}
+const TEAM_COLORS=["#2677aa","#b7474d","#218267","#7856a6","#bc7c28","#3564a5","#327b9b","#9b4c72"];
+function teamColorForName(team){
+  const idx=teamPool().indexOf(team);return TEAM_COLORS[(idx<0?0:idx)%TEAM_COLORS.length];
+}
+function playerColor(index){
+  if(!tournamentMode)return index===1?"#49a9e6":"#e75f68";
+  return teamColorForName(playerName(index));
+}
+function playerMark(index){return playerName(index).trim().charAt(0)||String(index);}
 function refreshTournamentMenu(){
   const labels=tournamentKindEl.options;
   for(const option of labels)option.selected=option.value===tournamentKind;
-  team1CycleEl.textContent="آبی · "+teamPool()[teamIndices[0]];
-  team2CycleEl.textContent="قرمز · "+teamPool()[teamIndices[1]];
+  team1CycleEl.textContent="تیم شما · "+teamPool()[teamIndices[0]];
+  team2CycleEl.textContent="حریف آغازین · "+teamPool()[teamIndices[1]];
+  tournamentSizeEl.textContent=fa(tournamentSize)+" تیم";
 }
 function updateMoveCount(){
+  vsAiEl.textContent=vsAI?"🤖 بازی با هوش مصنوعی":"👤 دو نفره";
+  vsAiEl.classList.toggle("selected",vsAI);
+  aiDifficultyEl.textContent="هوش مصنوعی: "+["آسان","معمولی","حرفه‌ای"][aiDifficulty-1];
+  netStyleEl.value=netStyle;musicStyleEl.value=musicStyle;
   moveCountEl.textContent=fa(configuredMoves)+" حرکت در هر نوبت";
   moveMinusEl.disabled=configuredMoves<=minimumMoveCount();
   movePlusEl.disabled=configuredMoves>=MAX_MOVES_PER_TURN;
@@ -594,22 +694,26 @@ function showMenu(){
   startGameEl.textContent=scores.some(n=>n>0)?"شروع دوباره":"شروع بازی";
 }
 function tutorialWasSeen(){
-  try{return localStorage.getItem("se-toop-tutorial-v1")==="seen";}catch(e){return false;}
+  try{return localStorage.getItem("se-toop-pro-tutorial-v1")==="seen";}catch(e){return false;}
 }
 function startConfiguredGame(){
   menuEl.classList.add("hidden"); tutorialEl.classList.add("hidden");winnerScreenEl.classList.add("hidden");startMatch();
 }
 function hideMenuAndStart(proMode=false){
   professionalMode=proMode;
-  if(professionalMode) configuredMoves=Math.max(configuredMoves,PROFESSIONAL_MIN_MOVES);
+  if(professionalMode) configuredMoves=Math.min(configuredMoves,professionalMoveCap());
   movesPerTurn=configuredMoves;
   updateMoveCount();
   menuEl.classList.add("hidden");
-  if(!tutorialWasSeen()) tutorialEl.classList.remove("hidden");
-  else startConfiguredGame();
+  if(professionalMode&&!tutorialWasSeen()){
+    const cap=professionalMoveCap();
+    const requiredMove=Math.min(3,configuredMoves);
+    tutorialEl.querySelector("p").innerHTML="۱) یک فلیک رو به جلو بزنید؛ فشار انگشت قدرت را تعیین می‌کند، نه نگه‌داشتن یا کشیدن طولانی.<br><br>۲) هر شوت باید از شکاف دو توپ دیگر عبور کند؛ برخورد با توپ یا نرسیدن به شکاف خطاست.<br><br>۳) پس از عبور از خط میانی، مسیر دروازه باز می‌شود. گل پیش از حرکت "+fa(requiredMove)+" پذیرفته نیست؛ در این زمین حداکثر "+fa(cap)+" حرکت در نوبت دارید.";
+    tutorialEl.classList.remove("hidden");
+  } else startConfiguredGame();
 }
 document.getElementById("tutorial-continue").addEventListener("click",()=>{
-  try{localStorage.setItem("se-toop-tutorial-v1","seen");}catch(e){}
+  try{localStorage.setItem("se-toop-pro-tutorial-v1","seen");}catch(e){}
   startConfiguredGame();
 });
 moveMinusEl.addEventListener("click",()=>{
@@ -628,29 +732,49 @@ scorePlusEl.addEventListener("click",()=>{
   try{localStorage.setItem("se-toop-winning-score",String(winningScore));}catch(e){}
   updateMoveCount(); updateHud();
 });
+function selectMenuPage(page){
+  for(const tab of document.querySelectorAll(".menu-tabs button"))tab.classList.toggle("active",tab.dataset.page===page);
+  for(const node of document.querySelectorAll(".menu-page"))node.classList.toggle("active",node.id==="page-"+page);
+}
+for(const tab of document.querySelectorAll(".menu-tabs button"))tab.addEventListener("click",()=>selectMenuPage(tab.dataset.page));
+function setMusic(style){
+  musicStyle=style;
+  if(backgroundSource){try{backgroundSource.stop();}catch(e){}backgroundSource=null;}
+  if(style==="off")return;
+  const a=audio();if(!a)return;
+  const sampleRate=a.sampleRate||22050,duration=8,length=Math.floor(sampleRate*duration);
+  const buffer=a.createBuffer(1,length,sampleRate),data=buffer.getChannelData(0);
+  const scales=style==="stadium"?[110,130.81,146.83,164.81,196,164.81,146.83,130.81]:[220,261.63,329.63,392,329.63,293.66,261.63,196];
+  for(let i=0;i<length;i++){
+    const time=i/sampleRate,step=Math.floor(time/0.5)%scales.length,freq=scales[step];
+    const phase=2*Math.PI*freq*time,env=.5-.5*Math.cos(2*Math.PI*(time%0.5)/0.5);
+    data[i]=(Math.sin(phase)+.25*Math.sin(phase*2)+.15*Math.sin(phase*.5))*env*.13;
+  }
+  backgroundSource=a.createBufferSource();backgroundSource.buffer=buffer;backgroundSource.loop=true;
+  const gain=a.createGain();gain.gain.value=.48;backgroundSource.connect(gain).connect(a.destination);backgroundSource.start();
+}
+vsAiEl.addEventListener("click",()=>{vsAI=!vsAI;updateMoveCount();});
+aiDifficultyEl.addEventListener("click",()=>{aiDifficulty=aiDifficulty%3+1;updateMoveCount();});
+tournamentSizeEl.addEventListener("click",()=>{tournamentSize=tournamentSize===2?4:tournamentSize===4?8:2;refreshTournamentMenu();});
 surfaceSelectEl.addEventListener("change",()=>{
-  selectedSurface=surfaceSelectEl.value;
-  try{localStorage.setItem("se-toop-surface",selectedSurface);}catch(e){}
+  selectedSurface=surfaceSelectEl.value;try{localStorage.setItem("se-toop-surface",selectedSurface);}catch(e){}
+  updateMoveCount();
 });
-tournamentKindEl.addEventListener("change",()=>{
-  tournamentKind=tournamentKindEl.value;teamIndices=[0,1];refreshTournamentMenu();
-});
+netStyleEl.addEventListener("change",()=>{netStyle=netStyleEl.value;try{localStorage.setItem("se-toop-net",netStyle);}catch(e){}});
+musicStyleEl.addEventListener("change",()=>{setMusic(musicStyleEl.value);try{localStorage.setItem("se-toop-music",musicStyle);}catch(e){}});
+tournamentKindEl.addEventListener("change",()=>{tournamentKind=tournamentKindEl.value;teamIndices=[0,1];refreshTournamentMenu();});
 function cycleTeam(slot){
   const pool=teamPool();teamIndices[slot]=(teamIndices[slot]+1)%pool.length;
   if(teamIndices[0]===teamIndices[1])teamIndices[slot]=(teamIndices[slot]+1)%pool.length;
   refreshTournamentMenu();
 }
-team1CycleEl.addEventListener("click",()=>cycleTeam(0));
-team2CycleEl.addEventListener("click",()=>cycleTeam(1));
+team1CycleEl.addEventListener("click",()=>cycleTeam(0));team2CycleEl.addEventListener("click",()=>cycleTeam(1));
 startGameEl.addEventListener("click",()=>{tournamentMode=false;hideMenuAndStart(false);});
 proModeEl.addEventListener("click",()=>{tournamentMode=false;hideMenuAndStart(true);});
-tournamentStartEl.addEventListener("click",()=>{
-  tournamentMode=true;tournamentWins=[0,0];tournamentMatch=1;hideMenuAndStart(false);
-});
+tournamentStartEl.addEventListener("click",()=>beginTournament(false));
 document.getElementById("winner-rematch").addEventListener("click",()=>{
   winnerScreenEl.classList.add("hidden");
-  if(tournamentMode){tournamentWins=[0,0];tournamentMatch=1;}
-  startMatch();
+  if(tournamentMode)beginTournament(true);else startMatch();
 });
 document.getElementById("winner-menu").addEventListener("click",showMenu);
 updateMoveCount();
@@ -683,6 +807,7 @@ function professionalImpulse(swipe){
 function onDown(e){
   e.preventDefault();
   audio();
+  if(musicStyle!=="off"&&!backgroundSource)setMusic(musicStyle);
   const screen=screenPoint(e);
   if(hitMenu(screen)){ showMenu(); return; }
   if(state!==ST.WAIT) return;
@@ -744,14 +869,8 @@ function resize(){
   dpr=Math.min(window.devicePixelRatio||1,2);
   const cw=window.innerWidth,ch=window.innerHeight;
   cv.width=Math.floor(cw*dpr); cv.height=Math.floor(ch*dpr);
-  landscape=cw>ch;
-  if(landscape){
-    scale=Math.min(cw/H,ch/W);
-    ox=(cw-H*scale)/2; oy=(ch-W*scale)/2;
-  } else {
-    scale=Math.min(cw/W,ch/H);
-    ox=(cw-W*scale)/2; oy=(ch-H*scale)/2;
-  }
+  scale=Math.min(cw/W,ch/H);
+  ox=(cw-W*scale)/2;oy=(ch-H*scale)/2;
 }
 window.addEventListener("resize",resize);
 
@@ -776,10 +895,19 @@ function drawSurface(){
     ctx.beginPath();ctx.moveTo(x,y+h*.52);ctx.lineTo(x+w,y+h*.52);ctx.stroke();
     ctx.beginPath();ctx.arc(x+w/2,y+h*.52,80,0,Math.PI*2);ctx.stroke();
   }else if(selectedSurface==="indoor"){
-    ctx.fillStyle="#b9824f";ctx.fillRect(x,y,w,h);
-    for(let i=0;i<12;i++){ctx.fillStyle=i%2?"rgba(255,222,162,.10)":"rgba(69,35,15,.12)";ctx.fillRect(x+i*w/12,y,w/12,h);}
-    ctx.strokeStyle="rgba(65,37,22,.27)";ctx.lineWidth=3;
-    for(let yy=y+110;yy<y+h;yy+=145){ctx.beginPath();ctx.moveTo(x,yy);ctx.lineTo(x+w,yy);ctx.stroke();}
+    ctx.fillStyle="#a96f3e";ctx.fillRect(x,y,w,h);
+    for(let i=0;i<12;i++){ctx.fillStyle=i%2?"rgba(255,224,165,.11)":"rgba(69,35,15,.12)";ctx.fillRect(x+i*w/12,y,w/12,h);}
+    ctx.strokeStyle="rgba(255,246,224,.70)";ctx.lineWidth=4;
+    ctx.strokeRect(x+34,y+34,w-68,h-68);
+    ctx.beginPath();ctx.moveTo(x+34,y+h/2);ctx.lineTo(x+w-34,y+h/2);ctx.stroke();
+    ctx.beginPath();ctx.arc(x+w/2,y+h/2,92,0,Math.PI*2);ctx.stroke();
+    for(const endY of [y+34,y+h-34]){
+      const boxY=endY===y+34?endY:endY-205;
+      ctx.strokeRect(x+w*.25,boxY,w*.5,205);
+      ctx.beginPath();ctx.arc(x+w/2,boxY+(endY===y+34?205:0),70,0,Math.PI);ctx.stroke();
+      ctx.beginPath();ctx.arc(x+w/2,boxY+(endY===y+34?150:55),4,0,Math.PI*2);ctx.fillStyle="#fff3d7";ctx.fill();
+    }
+    ctx.fillStyle="rgba(255,255,255,.20)";ctx.fillRect(x+w*.49,y+8,10,h-16);
   }else if(selectedSurface==="asphalt"){
     ctx.fillStyle="#41474b";ctx.fillRect(x,y,w,h);
     ctx.fillStyle="rgba(228,232,225,.13)";
@@ -818,7 +946,6 @@ function draw(){
   const sx = shake>0.1 ? rnd(-shake,shake) : 0;
   const sy = shake>0.1 ? rnd(-shake,shake) : 0;
   ctx.setTransform(dpr*scale,0,0,dpr*scale,(ox+sx*scale)*dpr,(oy+sy*scale)*dpr);
-  if(landscape){ ctx.translate(H,0); ctx.rotate(Math.PI/2); }
 
   // زمین
   ctx.fillStyle="#171009"; ctx.fillRect(0,0,W,H);
@@ -842,15 +969,20 @@ function draw(){
   ctx.beginPath(); ctx.moveTo(TABLE.x,ATTACK_Y); ctx.lineTo(TABLE.x+TABLE.w,ATTACK_Y); ctx.stroke();
 
   // دروازه
-  ctx.fillStyle="#123d26"; ctx.fillRect(GOAL.x-16,GOAL.y-16,GOAL.w+32,GOAL.h+18);
-  ctx.fillStyle="#1c7f49"; ctx.fillRect(GOAL.x,GOAL.y,GOAL.w,GOAL.h);
-  ctx.fillStyle="#21573b"; ctx.fillRect(GOAL.x,GOAL.y-WALL,GOAL.w,WALL);
-  ctx.strokeStyle="rgba(255,255,255,0.13)"; ctx.lineWidth=1.5;
-  for(let x=GOAL.x;x<=GOAL.x+GOAL.w;x+=24){
-    ctx.beginPath(); ctx.moveTo(x,GOAL.y); ctx.lineTo(x,GOAL.y+GOAL.h); ctx.stroke();
-  }
-  for(let y=GOAL.y;y<=GOAL.y+GOAL.h;y+=19){
-    ctx.beginPath(); ctx.moveTo(GOAL.x,y); ctx.lineTo(GOAL.x+GOAL.w,y); ctx.stroke();
+  const netBg=netStyle==="paper"?"#69563e":netStyle==="mesh"?"#26353b":netStyle==="team"?"#173a50":"#123d26";
+  ctx.fillStyle=netBg;ctx.fillRect(GOAL.x-16,GOAL.y-16,GOAL.w+32,GOAL.h+18);
+  ctx.fillStyle=netStyle==="paper"?"#b59a6f":netStyle==="mesh"?"#59656a":netStyle==="team"?"#225d82":"#1c7f49";
+  ctx.fillRect(GOAL.x,GOAL.y,GOAL.w,GOAL.h);
+  ctx.fillStyle="#21573b";ctx.fillRect(GOAL.x,GOAL.y-WALL,GOAL.w,WALL);
+  const netColor=netStyle==="paper"?"rgba(255,226,174,.52)":netStyle==="team"?playerColor(player):netStyle==="mesh"?"rgba(226,237,240,.58)":"rgba(255,255,255,.27)";
+  ctx.strokeStyle=netColor;ctx.lineWidth=netStyle==="paper"?2.5:netStyle==="team"?4:1.6;
+  if(netStyle==="mesh"){
+    for(let k=-80;k<380;k+=22){ctx.beginPath();ctx.moveTo(GOAL.x+k,GOAL.y);ctx.lineTo(GOAL.x+k+105,GOAL.y+GOAL.h);ctx.stroke();}
+    for(let k=-70;k<380;k+=22){ctx.beginPath();ctx.moveTo(GOAL.x+k,GOAL.y+GOAL.h);ctx.lineTo(GOAL.x+k+105,GOAL.y);ctx.stroke();}
+  }else{
+    const step=netStyle==="team"?34:24;
+    for(let x=GOAL.x;x<=GOAL.x+GOAL.w;x+=step){ctx.beginPath();ctx.moveTo(x,GOAL.y);ctx.lineTo(x,GOAL.y+GOAL.h);ctx.stroke();}
+    for(let y=GOAL.y;y<=GOAL.y+GOAL.h;y+=netStyle==="paper"?13:19){ctx.beginPath();ctx.moveTo(GOAL.x,y);ctx.lineTo(GOAL.x+GOAL.w,y);ctx.stroke();}
   }
   // خط دروازه
   ctx.strokeStyle="rgba(89,255,140,0.55)"; ctx.lineWidth=4;
@@ -938,11 +1070,10 @@ function drawBall(b){
   ctx.closePath();
   ctx.fillStyle="#f7f5ea"; ctx.fill();
   ctx.strokeStyle="rgba(199,189,163,0.9)"; ctx.lineWidth=2; ctx.stroke();
-  ctx.strokeStyle=player===1?"rgba(115,200,255,0.72)":"rgba(255,133,133,0.72)"; ctx.lineWidth=2.5;
-  ctx.beginPath();
-  ctx.moveTo(b.pts[1].x*0.62,b.pts[1].y*0.62);
-  ctx.lineTo(0,0); ctx.lineTo(b.pts[5].x*0.68,b.pts[5].y*0.68);
-  ctx.lineTo(b.pts[8].x*0.58,b.pts[8].y*0.58); ctx.stroke();
+  ctx.strokeStyle=playerColor(player);ctx.globalAlpha=.75;ctx.lineWidth=3;
+  ctx.beginPath();ctx.moveTo(b.pts[1].x*.62,b.pts[1].y*.62);ctx.lineTo(0,0);ctx.lineTo(b.pts[5].x*.68,b.pts[5].y*.68);ctx.lineTo(b.pts[8].x*.58,b.pts[8].y*.58);ctx.stroke();
+  ctx.globalAlpha=1;ctx.beginPath();ctx.arc(0,0,12,0,6.2832);ctx.fillStyle=playerColor(player);ctx.fill();ctx.strokeStyle="#fff6e4";ctx.lineWidth=1.5;ctx.stroke();
+  ctx.fillStyle="#fffaf0";ctx.font="bold 13px Vazirmatn,Tahoma,sans-serif";ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(playerMark(player),0,1);
   ctx.restore();
   if(b===dragBall && dragging){
     ctx.beginPath(); ctx.arc(b.p.x,b.p.y,R+12,0,6.2832);
@@ -997,11 +1128,10 @@ function drawHudText(text,rightX,y,maxWidth,size,color,weight=600){
 function drawHud(){
   ctx.save();
   ctx.setTransform(dpr*scale,0,0,dpr*scale,ox*dpr,oy*dpr);
-  if(landscape){ drawHudLandscape(); ctx.restore(); return; }
   ctx.direction="rtl"; ctx.textBaseline="middle";
   ctx.fillStyle="rgba(10,13,17,0.96)"; ctx.fillRect(0,0,W,126);
-  drawScoreCard(15,7,282,51,playerName(1),scores[0],"#73c8ff",player===1);
-  drawScoreCard(15,68,282,51,playerName(2),scores[1],"#ff8585",player===2);
+  drawScoreCard(15,7,282,51,playerName(1),scores[0],playerColor(1),player===1);
+  drawScoreCard(15,68,282,51,playerName(2),scores[1],playerColor(2),player===2);
 
   drawHudText(turnText,740,34,425,26,"#f2f2f2");
   drawHudText(statusText,740,76,425,22,"#d1c8b8");
@@ -1020,22 +1150,6 @@ function drawHud(){
     ctx.fillStyle=banner.color;ctx.fillText(banner.text,0,0);ctx.restore();ctx.globalAlpha=1;
   }
   ctx.direction="ltr";ctx.restore();
-}
-
-function drawHudLandscape(){
-  ctx.direction="rtl";ctx.textBaseline="middle";
-  ctx.fillStyle="rgba(10,13,17,0.96)";ctx.fillRect(0,0,1920,112);
-  drawScoreCard(16,6,282,46,playerName(1),scores[0],"#73c8ff",player===1,true);
-  drawScoreCard(16,60,282,46,playerName(2),scores[1],"#ff8585",player===2,true);
-  drawHudText(turnText,1650,30,1335,25,"#f2f2f2");
-  drawHudText(statusText,1650,73,1335,21,"#d1c8b8");
-  if(!professionalMode){
-    ctx.fillStyle="rgba(255,255,255,0.12)";rr(820,96,250,9,4);ctx.fill();
-    if(gateOpen){ctx.fillStyle="#70edaf";rr(820,96,250,9,4);ctx.fill();}
-  }
-  drawHudMenuButton(1760,13,135,78);
-  if(banner.on){ctx.font="bold 54px Vazirmatn,Tahoma,sans-serif";ctx.textAlign="center";ctx.fillStyle=banner.color;ctx.fillText(banner.text,960,560);}
-  ctx.direction="ltr";
 }
 
 // ------------------------------ حلقهٔ اصلی
