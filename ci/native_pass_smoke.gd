@@ -11,6 +11,7 @@ func _run() -> void:
 	var game = packed.instantiate()
 	root.add_child(game)
 	await process_frame
+	print("Smoke checkpoint: scene booted")
 
 	game.professional_mode = false
 	game.moves_per_turn = 3
@@ -25,6 +26,7 @@ func _run() -> void:
 		quit(1)
 		return
 
+	print("Smoke checkpoint: turn setup settled")
 	var positions := [Vector2(440, 1500), Vector2(540, 1350), Vector2(640, 1500)]
 	for i in range(3):
 		var ball: RigidBody2D = game.balls[i]
@@ -51,6 +53,7 @@ func _run() -> void:
 		push_error(failure)
 		quit(1)
 		return
+	print("Smoke checkpoint: pass-gap shot completed")
 	var failures: Array[String] = []
 	if game._minimum_configured_moves() != 2:
 		failures.append("Normal-mode minimum move count is not two")
@@ -131,6 +134,7 @@ func _run() -> void:
 	if game.tournament_wins[0] != 1 or game.state != 4:
 		failures.append("First tournament match did not advance the series")
 	game._finish_tournament_match()
+	print("Smoke checkpoint: cup final processed")
 	if game.state != 5 or not game.victory_overlay.visible:
 		failures.append("Tournament champion did not receive the victory screen")
 	game._show_main_menu()

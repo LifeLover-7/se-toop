@@ -50,7 +50,7 @@ jobs:
       - name: Run native Godot gameplay smoke tests
         run: |
           set +e
-          godot --headless --path . --script ci/native_pass_smoke.gd 2>&1 | tee /tmp/godot-smoke.log
+          timeout 120s godot --headless --path . --script ci/native_pass_smoke.gd 2>&1 | tee /tmp/godot-smoke.log
           result=${PIPESTATUS[0]}
           set -e
           if [ "$result" -ne 0 ]; then
@@ -61,6 +61,15 @@ jobs:
             done
             exit "$result"
           fi
+
+      - name: Upload native smoke diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Native-smoke-log
+          path: /tmp/godot-smoke.log
+          if-no-files-found: warn
+          retention-days: 3
 
       - name: Export native Android debug APK
         run: |
