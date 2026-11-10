@@ -644,8 +644,10 @@ func _build_hud() -> void:
 
 	p1_score_label = _label(hud_root, Vector2.ZERO, 20, Color(0.72, 0.88, 0.98))
 	p1_score_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	p1_score_label.clip_text = true
 	p2_score_label = _label(hud_root, Vector2.ZERO, 20, Color(1.0, 0.78, 0.78))
 	p2_score_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	p2_score_label.clip_text = true
 	p1_score_value = _label(hud_root, Vector2.ZERO, 34, Color.WHITE)
 	p1_score_value.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	p2_score_value = _label(hud_root, Vector2.ZERO, 34, Color.WHITE)
@@ -664,7 +666,8 @@ func _build_hud() -> void:
 	goal_meter.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	hud_root.add_child(goal_meter)
 
-	menu_button = _new_button(hud_root, "منو")
+	menu_button = _new_button(hud_root, "منو  ☰")
+	_style_button(menu_button, Color(0.30, 0.22, 0.13, 1.0))
 	menu_button.pressed.connect(_on_menu_pressed)
 
 	banner_label = _label(hud_root, Vector2.ZERO, 48, Color.WHITE)
