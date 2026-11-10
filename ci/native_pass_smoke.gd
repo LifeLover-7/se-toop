@@ -138,6 +138,17 @@ func _run() -> void:
 	if game.state != 5 or not game.victory_overlay.visible:
 		failures.append("Tournament champion did not receive the victory screen")
 	game._show_main_menu()
+	game.vs_ai = true
+	game.ai_difficulty = 1
+	game._start_turn(2)
+	for _frame in range(900):
+		await physics_frame
+		if game.state == BALLS_MOVING:
+			break
+	if game.state != BALLS_MOVING or game.active_ball == null:
+		failures.append("AI did not schedule and launch a shot")
+	game.vs_ai = false
+	game._show_main_menu()
 	game._set_gate(true, true)
 	var goal_probe: RigidBody2D = game.balls[0]
 	goal_probe.global_position = Vector2(540, 180)
