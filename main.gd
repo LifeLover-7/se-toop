@@ -2,18 +2,15 @@ extends Node2D
 ## سه‌توپ — بازی آرکید دونفره با Godot 4.7
 
 enum GameState { MENU, TURN_SETUP, WAITING_FOR_INPUT, BALLS_MOVING, TRANSITION, MATCH_OVER }
-enum ShotKind { NONE, PASS, OPENER, GOAL, FOUL }
+enum ShotKind { NONE, PASS, GOAL, FOUL }
 
 # ---------------------------------------------------------------- پیکربندی
 const TABLE_RECT := Rect2(60, 218, 960, 1542)
 const WALL_THICKNESS := 24.0
 const GOAL_RECT := Rect2(390, 140, 300, 78)
 const BALL_RADIUS := 36.0
-const MIN_SPAWN_CENTER_DISTANCE := 200.0
 const MAX_DRAG_DIST := 320.0
 const MIN_SHOT_DRAG_DIST := 24.0
-const PRO_MIN_SWIPE_SPEED := 120.0
-const PRO_MAX_SWIPE_SPEED := 1600.0
 const IMPULSE_MULTIPLIER := 10.0
 const STOP_SPEED_THRESHOLD := 12.0
 const LINEAR_DAMP := 2.0
@@ -21,7 +18,7 @@ const DEFAULT_WINNING_SCORE := 3
 const MIN_WINNING_SCORE := 1
 const MAX_WINNING_SCORE := 15
 const DEFAULT_MOVES_PER_TURN := 3
-const MIN_MOVES_PER_TURN := 1
+const MIN_MOVES_PER_TURN := 2
 const MAX_MOVES_PER_TURN := 9
 const PROFESSIONAL_MIN_MOVES := 3
 const MIX_RATE := 22050.0
@@ -52,11 +49,6 @@ var shot_origin := Vector2.ZERO
 var is_dragging := false
 var drag_current_pos := Vector2.ZERO
 var drag_start_pos := Vector2.ZERO
-var drag_start_usec := 0
-var drag_last_pos := Vector2.ZERO
-var drag_last_usec := 0
-var pro_motion_distance := 0.0
-var pro_motion_usec := 0
 var drag_ball: RigidBody2D = null
 
 var current_player := 1
@@ -132,7 +124,6 @@ var status_label: Label
 var banner_label: Label
 var goal_meter: ColorRect
 var goal_meter_bg: ColorRect
-var reset_btn: Button
 var toast_label: Label
 
 var audio_out: AudioStreamPlayer
@@ -192,7 +183,6 @@ func _setup_font() -> void:
 	for lbl in labels:
 		if lbl != null:
 			lbl.add_theme_font_override("font", sys_font)
-	reset_btn.add_theme_font_override("font", sys_font)
 	menu_button.add_theme_font_override("font", sys_font)
 	moves_down_button.add_theme_font_override("font", sys_font)
 	moves_up_button.add_theme_font_override("font", sys_font)
@@ -328,9 +318,11 @@ func _build_walls() -> void:
 	_add_wall(Vector2((mouth_r + right) * 0.5, top - t * 0.5), Vector2(right - mouth_r + t, t))
 	# دیوارهٔ پشتی تور؛ توپ بعد از گل از قاب دروازه خارج نمی‌شود.
 	_add_wall(Vector2(GOAL_RECT.get_center().x, GOAL_RECT.position.y - t * 0.5),
-		Vector2(GOAL_RECT.size.x, t), "GoalBackstop")
+		Vector2(GOAL_RECT.size.x, t), "GoalBackstop", 0.12)
 
-func _add_wall(center: Vector2, size: Vector2, node_name: String = "") -> void:
+func _add_wall(
+		center: Vector2, size: Vector2, node_name: String = "", bounce: float = 0.55
+) -> void:
 	var wall := StaticBody2D.new()
 	if node_name != "":
 		wall.name = node_name
@@ -341,7 +333,7 @@ func _add_wall(center: Vector2, size: Vector2, node_name: String = "") -> void:
 	col.shape = shape
 	wall.add_child(col)
 	var mat := PhysicsMaterial.new()
-	mat.bounce = 0.55
+	mat.bounce = bounce
 	mat.friction = 0.05
 	wall.physics_material_override = mat
 	add_child(wall)
@@ -555,8 +547,6 @@ func _build_hud() -> void:
 	goal_meter.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	hud_root.add_child(goal_meter)
 
-	reset_btn = _new_button(hud_root, "تعویض نوبت")
-	reset_btn.pressed.connect(_on_manual_reset_pressed)
 	menu_button = _new_button(hud_root, "منو")
 	menu_button.pressed.connect(_on_menu_pressed)
 
@@ -659,8 +649,8 @@ func _build_hud() -> void:
 	tutorial_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	tutorial_text = _label(tutorial_panel, Vector2.ZERO, 22, Color(0.95, 0.92, 0.86))
 	tutorial_text.text = "۱) عادی: توپ را خلاف جهت شوت بکشید. " \
-		+ "حرفه‌ای: در جهت شوت سریع بکشید؛ سرعت انگشت قدرت را تعیین می‌کند.\n\n" \
-		+ "۲) برای پاس، توپ را از شکاف دو توپ عبور دهید؛ برخورد با توپ دیگر خطاست و نوبت می‌سوزد.\n\n" \
+		+ "حرفه‌ای: در جهت شوت به جلو بکشید؛ هرچه بیشتر بکشید، قدرت بیشتر می‌شود.\n\n" \
+		+ "۲) هر شوت باید از شکاف دو توپ دیگر رد شود؛ برخورد با توپ یا نرسیدن به شکاف خطاست.\n\n" \
 		+ "۳) پس از عبور توپ از خط میانی، صبر کنید تا بایستد و مسیر آزاد شود؛ " \
 		+ "برای گل باید تمام توپ از خط دروازه رد شود.\n\n" \
 		+ "۴) در حالت حرفه‌ای، گل از حرکت سوم به بعد مجاز است؛ تعداد حرکت را از منو تنظیم کنید."
@@ -753,8 +743,6 @@ func _layout_hud(view_size: Vector2, landscape: bool) -> void:
 			Vector2(600, 36) * scale_ui), roundi(21 * scale_ui))
 		goal_meter_bg.position = origin + Vector2(330, 96) * scale_ui
 		goal_meter_bg.size = Vector2(250, 9) * scale_ui
-		reset_btn.position = origin + Vector2(1500, 13) * scale_ui
-		reset_btn.size = Vector2(240, 78) * scale_ui
 		menu_button.position = origin + Vector2(1760, 13) * scale_ui
 		menu_button.size = Vector2(135, 78) * scale_ui
 		_layout_label(banner_label, Rect2(origin + Vector2(500, 430) * scale_ui,
@@ -782,8 +770,6 @@ func _layout_hud(view_size: Vector2, landscape: bool) -> void:
 			Vector2(405, 38) * scale_ui), roundi(21 * scale_ui))
 		goal_meter_bg.position = origin + Vector2(315, 101) * scale_ui
 		goal_meter_bg.size = Vector2(240, 9) * scale_ui
-		reset_btn.position = origin + Vector2(752, 18) * scale_ui
-		reset_btn.size = Vector2(204, 82) * scale_ui
 		menu_button.position = origin + Vector2(968, 18) * scale_ui
 		menu_button.size = Vector2(94, 82) * scale_ui
 		_layout_label(banner_label, Rect2(origin + Vector2(120, 890) * scale_ui,
@@ -792,7 +778,6 @@ func _layout_hud(view_size: Vector2, landscape: bool) -> void:
 			Vector2(960, 60) * scale_ui), roundi(20 * scale_ui))
 	goal_meter.position = goal_meter_bg.position
 	goal_meter.size.y = goal_meter_bg.size.y
-	reset_btn.add_theme_font_size_override("font_size", roundi(17 * scale_ui))
 	menu_button.add_theme_font_size_override("font_size", roundi(20 * scale_ui))
 	_layout_menu(view_size, landscape)
 
@@ -1063,15 +1048,8 @@ func _spawn_balls() -> void:
 func _start_new_match() -> void:
 	scores = [0, 0]
 	current_player = 1
-	reset_btn.text = "تعویض نوبت"
 	_start_turn(1)
 	_show_toast("")
-
-func _on_manual_reset_pressed() -> void:
-	if state == GameState.MATCH_OVER:
-		_start_new_match()
-	else:
-		_switch_turn()
 
 func _start_turn(player_idx: int) -> void:
 	current_player = player_idx
@@ -1187,29 +1165,13 @@ func _begin_drag(pos: Vector2) -> void:
 	if is_dragging:
 		drag_current_pos = pos
 		drag_start_pos = pos
-		drag_start_usec = Time.get_ticks_usec()
-		drag_last_pos = pos
-		drag_last_usec = drag_start_usec
-		pro_motion_distance = 0.0
-		pro_motion_usec = 0
 		if not professional_mode:
 			_update_target_gate_preview(best)
 		_play_sfx(720.0, 760.0, 0.05, -22.0)
 
-func _track_pro_swipe_motion(pos: Vector2, now_usec: int) -> void:
-	var elapsed_usec := now_usec - drag_last_usec
-	var step_distance := pos.distance_to(drag_last_pos)
-	# Ignore pauses between movement bursts so holding the finger does not dilute power.
-	if elapsed_usec > 0 and elapsed_usec <= 150000 and step_distance > 0.0:
-		pro_motion_distance += step_distance
-		pro_motion_usec += elapsed_usec
-	drag_last_pos = pos
-	drag_last_usec = now_usec
-
 func _update_drag(pos: Vector2) -> void:
 	drag_current_pos = pos
 	if professional_mode:
-		_track_pro_swipe_motion(pos, Time.get_ticks_usec())
 		aim_line.visible = false
 		aim_tip.visible = false
 		target_gate_line.visible = false
@@ -1234,6 +1196,10 @@ func _update_drag(pos: Vector2) -> void:
 	aim_tip.position = drag_ball.global_position + pull
 	aim_tip.rotation = pull.angle()
 
+func _professional_shot_impulse(swipe: Vector2) -> Vector2:
+	var strength := clampf(swipe.length(), MIN_SHOT_DRAG_DIST, MAX_DRAG_DIST)
+	return swipe.normalized() * strength * IMPULSE_MULTIPLIER
+
 func _end_drag(pos: Vector2) -> void:
 	is_dragging = false
 	aim_line.visible = false
@@ -1242,19 +1208,9 @@ func _end_drag(pos: Vector2) -> void:
 	if drag_ball == null:
 		return
 	if professional_mode:
-		var now_usec := Time.get_ticks_usec()
-		_track_pro_swipe_motion(pos, now_usec)
 		var swipe := pos - drag_start_pos
-		var elapsed := maxf((now_usec - drag_start_usec) / 1000000.0, 0.05)
-		var swipe_speed := swipe.length() / elapsed
-		if pro_motion_usec > 0:
-			swipe_speed = pro_motion_distance / (float(pro_motion_usec) / 1000000.0)
-		if swipe.length() >= MIN_SHOT_DRAG_DIST:
-			var power_ratio := clampf(
-				(swipe_speed - PRO_MIN_SWIPE_SPEED) / (PRO_MAX_SWIPE_SPEED - PRO_MIN_SWIPE_SPEED),
-				0.0, 1.0)
-			var equivalent_drag := lerpf(MIN_SHOT_DRAG_DIST, MAX_DRAG_DIST, power_ratio)
-			_shoot_ball(drag_ball, swipe.normalized() * equivalent_drag * IMPULSE_MULTIPLIER)
+		if swipe.length() > MIN_SHOT_DRAG_DIST:
+			_shoot_ball(drag_ball, _professional_shot_impulse(swipe))
 		else:
 			active_ball = null
 	else:
@@ -1326,26 +1282,6 @@ func _process(delta: float) -> void:
 func _trigger_shake(amount: float) -> void:
 	shake_strength = maxf(shake_strength, amount)
 
-func _ensure_setup_ball_spacing() -> void:
-	for _iteration in range(24):
-		var adjusted := false
-		for i in range(balls.size()):
-			for j in range(i + 1, balls.size()):
-				var delta := balls[j].global_position - balls[i].global_position
-				var distance := delta.length()
-				if distance >= MIN_SPAWN_CENTER_DISTANCE:
-					continue
-				var direction := delta / distance if distance > 0.001 else Vector2.RIGHT
-				var offset := direction * (MIN_SPAWN_CENTER_DISTANCE - distance) * 0.51
-				balls[i].global_position -= offset
-				balls[j].global_position += offset
-				adjusted = true
-		if not adjusted:
-			break
-	for ball in balls:
-		PhysicsServer2D.body_set_state(
-			ball.get_rid(), PhysicsServer2D.BODY_STATE_TRANSFORM, ball.global_transform)
-
 func _physics_process(_delta: float) -> void:
 	if state == GameState.TURN_SETUP:
 		var setup_stopped := true
@@ -1357,7 +1293,6 @@ func _physics_process(_delta: float) -> void:
 			for b in balls:
 				b.linear_velocity = Vector2.ZERO
 				b.angular_velocity = 0.0
-			_ensure_setup_ball_spacing()
 			for b in balls:
 				b.sleeping = true
 			state = GameState.WAITING_FOR_INPUT
@@ -1387,25 +1322,25 @@ func _physics_process(_delta: float) -> void:
 
 	var cur := active_ball.global_position
 
-	# ۱) گل فقط وقتی ثبت می‌شود که تمام توپ از خط ورودی دروازه عبور کند.
-	if cur.y + BALL_RADIUS <= GOAL_RECT.end.y + 6.0 \
-		and cur.x >= GOAL_RECT.position.x + BALL_RADIUS \
-		and cur.x <= GOAL_RECT.end.x - BALL_RADIUS \
-		and _is_gate_open_for(cur):
-		if professional_mode and _current_turn_move_number() < PROFESSIONAL_MIN_MOVES:
-			_finish_shot(ShotKind.FOUL, "در حالت حرفه‌ای، گل از حرکت سوم به بعد مجاز است؛ نوبت سوخت.")
-		else:
-			_finish_shot(ShotKind.GOAL)
-		return
-
-	# عبور از خط بین دو توپ در هر فریم ثبت می‌شود؛ این کار پیش از داوری خروج
-	# از میز انجام می‌شود تا عبور واقعی از شکاف به‌اشتباه «سوختن نوبت» نشود.
+	# عبور از شکاف را پیش از داوری گل/خروج ثبت می‌کنیم.
 	if not gap_crossed and pass_line_valid:
 		if Geometry2D.segment_intersects_segment(
 				prev_active_pos, cur, pass_line_a, pass_line_b) != null:
 			gap_crossed = true
 			_play_sfx(540.0, 780.0, 0.09)
 
+	# گل هم فقط با پاس معتبر و عبور کامل توپ از خط دروازه ثبت می‌شود.
+	if cur.y + BALL_RADIUS <= GOAL_RECT.end.y + 6.0 \
+		and cur.x >= GOAL_RECT.position.x + BALL_RADIUS \
+		and cur.x <= GOAL_RECT.end.x - BALL_RADIUS \
+		and _is_gate_open_for(cur):
+		if not gap_crossed and not _passed_between():
+			_finish_shot(ShotKind.FOUL, "توپ باید از شکاف بین دو توپ عبور کند؛ نوبت سوخت.")
+		elif professional_mode and _current_turn_move_number() < PROFESSIONAL_MIN_MOVES:
+			_finish_shot(ShotKind.FOUL, "در حالت حرفه‌ای، گل از حرکت سوم به بعد مجاز است؛ نوبت سوخت.")
+		else:
+			_finish_shot(ShotKind.GOAL)
+		return
 	# ۲) افتادن توپ از زمین (میز + دهانهٔ دروازه) → خطا
 	for b in balls:
 		if not _is_on_field(b.global_position):
@@ -1445,28 +1380,17 @@ func _judge_shot() -> void:
 		_finish_shot(ShotKind.FOUL, "برخورد با توپ دیگر! نوبت سوخت.")
 		return
 	var crossed := gap_crossed or _passed_between()
+	if not crossed:
+		_finish_shot(ShotKind.FOUL, "توپ باید از شکاف بین دو توپ عبور کند؛ نوبت سوخت.")
+		return
 	var opened := false
 	for b in balls:
 		if b.global_position.y < _attack_line_y():
 			opened = true
 			break
-	var reached_goal := active_ball != null and active_ball.global_position.y \
-		<= GOAL_RECT.end.y + BALL_RADIUS
-
 	if opened:
 		_set_gate(true)
-
-	if crossed and opened:
-		_finish_shot(ShotKind.PASS)
-	elif opened:
-		# همان باگ مسدودکنندهٔ Phase 2: این شوت فقط دروازه را باز می‌کند
-		_finish_shot(ShotKind.OPENER)
-	elif crossed:
-		_finish_shot(ShotKind.PASS)
-	elif reached_goal:
-		_finish_shot(ShotKind.FOUL, "دروازه بسته بود! اول باید باز شود.")
-	else:
-		_finish_shot(ShotKind.FOUL, "سوختی! توپ از شکاف پاس رد نشد.")
+	_finish_shot(ShotKind.PASS)
 
 ## آیا مسیر توپ شوت‌شده از پاره‌خط بین دو توپ دیگر گذشته است؟
 func _passed_between() -> bool:
@@ -1493,7 +1417,6 @@ func _finish_shot(kind: ShotKind, foul_reason: String = "") -> void:
 				state = GameState.MATCH_OVER
 				status_label.text = "بازیکن %s برنده شد!" % _fa(current_player)
 				_show_banner("قهرمان: بازیکن %s" % _fa(current_player), Color(0.3, 1.0, 0.5))
-				reset_btn.text = "بازی جدید"
 			else:
 				state = GameState.TRANSITION
 				status_label.text = "گل برای بازیکن %s!" % _fa(current_player)
@@ -1510,7 +1433,7 @@ func _finish_shot(kind: ShotKind, foul_reason: String = "") -> void:
 		_:
 			pass
 
-	# PASS / OPENER: هر شوت موفق یک حرکت از سهمیه کم می‌کند.
+	# هر پاس موفق یک حرکت از سهمیه کم می‌کند.
 	if kind == ShotKind.PASS:
 		_play_sfx(540.0, 780.0, 0.10)
 	moves_left -= 1

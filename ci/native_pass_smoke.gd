@@ -52,14 +52,35 @@ func _run() -> void:
 		quit(1)
 		return
 	var failures: Array[String] = []
+	if game._minimum_configured_moves() != 2:
+		failures.append("Normal-mode minimum move count is not two")
+	game.professional_mode = true
+	if game._minimum_configured_moves() != 3:
+		failures.append("Professional-mode minimum move count is not three")
+	game.professional_mode = false
+	var pro_light := game._professional_shot_impulse(Vector2(0, -80))
+	var pro_full := game._professional_shot_impulse(Vector2(0, -500))
+	if not is_equal_approx(pro_light.length(), 800.0) \
+			or not is_equal_approx(pro_full.length(), 3200.0):
+		failures.append("Professional swipe length does not match normal shot-power range")
 	if game.get_node_or_null("GoalBackstop") == null:
 		failures.append("Goal tunnel has no physical backstop")
+	game.gap_crossed = false
+	game.pass_line_valid = true
+	game.pass_line_a = Vector2(440, 1100)
+	game.pass_line_b = Vector2(640, 1100)
+	game.shot_origin = Vector2(540, 1300)
+	game.active_ball.global_position = Vector2(540, 1350)
+	game.balls[0].global_position = Vector2(400, 900)
+	game._judge_shot()
+	if game.state != 4 or game.gate_open:
+		failures.append("A non-passing opener was not called a foul")
 	game.winning_score = 2
 	game.scores[0] = 1
 	game._update_hud()
 	if game.p1_score_value.text != "۱/۲":
 		failures.append("Configurable score target is missing from the scoreboard")
-	game._finish_shot(3)
+	game._finish_shot(2)
 	if game.state != 5:
 		failures.append("Match did not end at the configured score target")
 	game._handle_back_request()
@@ -74,8 +95,8 @@ func _run() -> void:
 	goal_probe.sleeping = false
 	for _frame in range(20):
 		await physics_frame
-	if goal_probe.linear_velocity.y <= 0:
-		failures.append("Ball passed through the goal backstop instead of bouncing")
+	if goal_probe.linear_velocity.y <= 0 or goal_probe.linear_velocity.y >= 270.0:
+		failures.append("Goal backstop bounce is missing or still too forceful")
 	if not failures.is_empty():
 		for failure_message in failures:
 			push_error(failure_message)
